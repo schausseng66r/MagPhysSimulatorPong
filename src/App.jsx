@@ -677,18 +677,19 @@ export default function MagPhysSimulator() {
   const modeLabel = (m) => m === "ATTRACT" ? "ATTRACT" : m === "REPEL" ? "REPEL" : "STANDBY";
 
   return (
-    <div style={{ width: "100vw", height: "100vh", background: "#020509", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Courier New', monospace" }}>
+    <div style={{ position: "fixed", inset: 0, width: "100%", height: "100dvh", background: "#020509", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Courier New', monospace" }}>
 
       {/* ── Header HUD ─────────────────────────────────────────────────── */}
       <div style={{
         display: "flex", justifyContent: "space-between", alignItems: "center",
-        padding: "6px 14px", background: "rgba(0,0,0,0.7)",
+        padding: "4px 12px", background: "rgba(0,0,0,0.7)",
         borderBottom: "1px solid rgba(0,255,255,0.10)", zIndex: 10, flexShrink: 0,
+        minHeight: 0,
       }}>
         {/* P1 */}
         <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 100 }}>
           <span style={{ color: C_P1, fontSize: 9, letterSpacing: 3, opacity: 0.7 }}>PLAYER_1</span>
-          <span style={{ color: C_P1, fontSize: 20, fontWeight: "bold", lineHeight: 1 }}>{uiState.score.p1}</span>
+          <span style={{ color: C_P1, fontSize: 16, fontWeight: "bold", lineHeight: 1 }}>{uiState.score.p1}</span>
           <span style={{ color: modeColor(uiState.p1Mode), fontSize: 8, letterSpacing: 2, padding: "1px 5px", border: `1px solid ${modeColor(uiState.p1Mode)}`, display: "inline-block", opacity: uiState.p1Mode !== "NONE" ? 1 : 0.35 }}>
             {modeLabel(uiState.p1Mode)}
           </span>
@@ -705,7 +706,7 @@ export default function MagPhysSimulator() {
         {/* P2 / Bot */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, minWidth: 100 }}>
           <span style={{ color: C_BOT, fontSize: 9, letterSpacing: 3, opacity: 0.7 }}>{gameMode === "2P" ? "PLAYER_2" : "SYS_BOT"}</span>
-          <span style={{ color: C_BOT, fontSize: 20, fontWeight: "bold", lineHeight: 1 }}>{uiState.score.bot}</span>
+          <span style={{ color: C_BOT, fontSize: 16, fontWeight: "bold", lineHeight: 1 }}>{uiState.score.bot}</span>
           <span style={{ color: modeColor(uiState.botMode), fontSize: 8, letterSpacing: 2, padding: "1px 5px", border: `1px solid ${modeColor(uiState.botMode)}`, display: "inline-block", opacity: uiState.botMode !== "NONE" ? 1 : 0.35 }}>
             {modeLabel(uiState.botMode)}
           </span>
@@ -784,14 +785,14 @@ export default function MagPhysSimulator() {
       <div style={{
         flexShrink: 0, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(12px)",
         borderTop: "1px solid rgba(255,255,255,0.06)", zIndex: 10,
-        padding: "8px 12px 12px", display: "flex",
+        padding: "6px 10px 8px", display: "flex",
         flexDirection: gameMode === "2P" ? "row" : "column",
         gap: 8,
       }}>
 
         {/* ── P1 Panel ── */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6, borderRight: gameMode === "2P" ? "1px solid rgba(255,255,255,0.07)" : "none", paddingRight: gameMode === "2P" ? 10 : 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ color: C_P1, fontSize: 8, letterSpacing: 3, whiteSpace: "nowrap", opacity: 0.7 }}>P1 · Z</span>
             <input type="range" min="-100" max="100"
               value={Math.round(sliderVal * 100)}
@@ -802,11 +803,11 @@ export default function MagPhysSimulator() {
           <div style={{ display: "flex", gap: 8 }}>
             <button
               onPointerDown={() => { keysRef.current["q"] = true; }} onPointerUp={() => { keysRef.current["q"] = false; }} onPointerLeave={() => { keysRef.current["q"] = false; }}
-              style={{ flex: 1, padding: "12px 0", background: "rgba(0,255,255,0.07)", border: `1px solid ${C_ATTRACT}`, color: C_ATTRACT, fontSize: 10, letterSpacing: 2, fontFamily: "monospace", cursor: "pointer", touchAction: "none", userSelect: "none" }}
+              style={{ flex: 1, padding: "9px 0", background: "rgba(0,255,255,0.07)", border: `1px solid ${C_ATTRACT}`, color: C_ATTRACT, fontSize: 10, letterSpacing: 2, fontFamily: "monospace", cursor: "pointer", touchAction: "none", userSelect: "none" }}
             >− ATTRACT</button>
             <button
               onPointerDown={() => { keysRef.current["a"] = true; }} onPointerUp={() => { keysRef.current["a"] = false; }} onPointerLeave={() => { keysRef.current["a"] = false; }}
-              style={{ flex: 1, padding: "12px 0", background: "rgba(255,0,255,0.07)", border: `1px solid ${C_REPEL}`, color: C_REPEL, fontSize: 10, letterSpacing: 2, fontFamily: "monospace", cursor: "pointer", touchAction: "none", userSelect: "none" }}
+              style={{ flex: 1, padding: "9px 0", background: "rgba(255,0,255,0.07)", border: `1px solid ${C_REPEL}`, color: C_REPEL, fontSize: 10, letterSpacing: 2, fontFamily: "monospace", cursor: "pointer", touchAction: "none", userSelect: "none" }}
             >+ REPEL</button>
           </div>
         </div>
@@ -814,7 +815,7 @@ export default function MagPhysSimulator() {
         {/* ── P2 Panel (2P mode only) ── */}
         {gameMode === "2P" && (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6, paddingLeft: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ color: C_BOT, fontSize: 8, letterSpacing: 3, whiteSpace: "nowrap", opacity: 0.7 }}>P2 · Z</span>
               <input type="range" min="-100" max="100"
                 value={Math.round(slider2Val * 100)}
@@ -825,11 +826,11 @@ export default function MagPhysSimulator() {
             <div style={{ display: "flex", gap: 8 }}>
               <button
                 onPointerDown={() => { keysRef.current["o"] = true; }} onPointerUp={() => { keysRef.current["o"] = false; }} onPointerLeave={() => { keysRef.current["o"] = false; }}
-                style={{ flex: 1, padding: "12px 0", background: "rgba(0,255,255,0.07)", border: `1px solid ${C_ATTRACT}`, color: C_ATTRACT, fontSize: 10, letterSpacing: 2, fontFamily: "monospace", cursor: "pointer", touchAction: "none", userSelect: "none" }}
+                style={{ flex: 1, padding: "9px 0", background: "rgba(0,255,255,0.07)", border: `1px solid ${C_ATTRACT}`, color: C_ATTRACT, fontSize: 10, letterSpacing: 2, fontFamily: "monospace", cursor: "pointer", touchAction: "none", userSelect: "none" }}
               >− ATTRACT</button>
               <button
                 onPointerDown={() => { keysRef.current["p"] = true; }} onPointerUp={() => { keysRef.current["p"] = false; }} onPointerLeave={() => { keysRef.current["p"] = false; }}
-                style={{ flex: 1, padding: "12px 0", background: "rgba(255,0,255,0.07)", border: `1px solid ${C_REPEL}`, color: C_REPEL, fontSize: 10, letterSpacing: 2, fontFamily: "monospace", cursor: "pointer", touchAction: "none", userSelect: "none" }}
+                style={{ flex: 1, padding: "9px 0", background: "rgba(255,0,255,0.07)", border: `1px solid ${C_REPEL}`, color: C_REPEL, fontSize: 10, letterSpacing: 2, fontFamily: "monospace", cursor: "pointer", touchAction: "none", userSelect: "none" }}
               >+ REPEL</button>
             </div>
           </div>
@@ -838,10 +839,12 @@ export default function MagPhysSimulator() {
 
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { overflow: hidden; height: 100%; touch-action: none; }
         input[type=range] { height: 4px; }
         input[type=range]::-webkit-slider-thumb { width: 20px; height: 20px; border-radius: 50%; }
         canvas { display: block; }
         button:active { opacity: 0.75; }
+        @supports (height: 100dvh) { .root { height: 100dvh; } }
       `}</style>
     </div>
   );
