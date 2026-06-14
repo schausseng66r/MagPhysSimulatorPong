@@ -1,19 +1,17 @@
 {
-  "name": "mag-phys-simulator",
+  "name": "mag-phys-3d-dev",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
+  "scripts": { "dev": "vite", "build": "vite build", "preview": "vite preview" },
   "dependencies": {
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "three": "^0.165.0",
+    "@react-three/fiber": "^8.16.8",
+    "@react-three/drei": "^9.105.6",
+    "@react-three/postprocessing": "^2.16.2",
+    "zustand": "^4.5.4"
   },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.1",
-    "vite": "^5.4.2"
-  }
+  "devDependencies": { "@vitejs/plugin-react": "^4.3.1", "vite": "^5.4.2" }
 }
