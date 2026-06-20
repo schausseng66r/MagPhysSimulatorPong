@@ -273,17 +273,56 @@ function PhysicsController({ keysRef, s1Ref, s2Ref, modeRef }) {
 }
 
 // ─── Camera rig ───────────────────────────────────────────────────────────────
-function CameraRig() {
+// VS BOT: angled third-person, positioned behind/above the player's own pole,
+//         looking down the table toward the opponent goal -- tracks pole Z subtly.
+// 2P:     neutral angled broadcast position, symmetric so neither physical
+//         player's view is privileged over the other.
+// Both keep the full table (both goals) inside frame -- no hard FPS occlusion.
+const _camPos    = new THREE.Vector3();
+const _camLook   = new THREE.Vector3();
+const _curPos    = new THREE.Vector3(0, 13, 7);
+const _curLook   = new THREE.Vector3(0, 0, 0);
+
+function CameraRig({ modeRef }) {
   const { camera } = useThree();
+
   useFrame(() => {
-    const { cameraShake } = useStore.getState();
+    const { cameraShake, p1 } = useStore.getState();
     const mobile = window.innerWidth < 768;
-    const bY = mobile ? 11 : 8, bZ = 2.5, fov = mobile ? 70 : 60;
-    if (Math.abs(camera.fov - fov) > 0.1) { camera.fov += (fov - camera.fov) * 0.05; camera.updateProjectionMatrix(); }
-    const sh = cameraShake * 0.15;
-    camera.position.set((Math.random() - 0.5) * sh, bY + (Math.random() - 0.5) * sh * 0.4, bZ);
-    camera.lookAt(0, 0, 0);
+    const mode   = modeRef.current;
+
+    let fov;
+    if (mode === "BOT") {
+      // Over P1's shoulder -- behind own pole, angled across the full table
+      const followZ = clamp(p1.z * 0.42, -1.7, 1.7);
+      _camPos.set(mobile ? -11.2 : -9.6, mobile ? 8.6 : 6.2, followZ);
+      _camLook.set(1.6, -0.1, followZ * 0.22);
+      fov = mobile ? 74 : 60;
+    } else {
+      // 2P -- symmetric broadcast angle off the long edge
+      _camPos.set(0, mobile ? 10.2 : 8.4, mobile ? 6.4 : 5.1);
+      _camLook.set(0, -0.1, 0);
+      fov = mobile ? 70 : 56;
+    }
+
+    // Smooth settle into position (also gives a nice establishing sweep on load)
+    _curPos.lerp(_camPos, 0.055);
+    _curLook.lerp(_camLook, 0.07);
+
+    if (Math.abs(camera.fov - fov) > 0.1) {
+      camera.fov += (fov - camera.fov) * 0.05;
+      camera.updateProjectionMatrix();
+    }
+
+    const sh = cameraShake * 0.13;
+    camera.position.set(
+      _curPos.x + (Math.random() - 0.5) * sh,
+      _curPos.y + (Math.random() - 0.5) * sh * 0.4,
+      _curPos.z + (Math.random() - 0.5) * sh * 0.6
+    );
+    camera.lookAt(_curLook.x, _curLook.y, _curLook.z);
   });
+
   return null;
 }
 
@@ -826,7 +865,7 @@ function Scene({ keysRef, s1Ref, s2Ref, modeRef }) {
   const phase = useStore(s => s.phase);
   return (
     <>
-      <CameraRig />
+      <CameraRig modeRef={modeRef} />
       <PhysicsController keysRef={keysRef} s1Ref={s1Ref} s2Ref={s2Ref} modeRef={modeRef} />
       <ambientLight intensity={0.12} />
       <pointLight position={[0, 7, 0]} intensity={0.5} color="#ffffff" decay={2} />
@@ -868,7 +907,7 @@ export default function MagPhys3D() {
   return (
     <div style={{ position:"fixed", inset:0, width:"100%", height:"100dvh", background:UI.void, overflow:"hidden" }}>
       <Canvas
-        camera={{ position:[0, 8, 2.5], fov:60, near:0.1, far:100 }}
+        camera={{ position:[0, 13, 7], fov:56, near:0.1, far:100 }}
         gl={{ antialias:true, alpha:false, powerPreference:"high-performance" }}
         shadows
         style={{ position:"absolute", inset:0 }}
