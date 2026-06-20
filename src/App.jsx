@@ -33,6 +33,24 @@ const FIELD_COUNT    = FIELD_COLS * FIELD_ROWS;
 const C_ATTRACT = "#00FFFF";
 const C_REPEL   = "#FF00FF";
 
+// Submerged Analog Minimalism -- UI palette
+// Lo-fi, low-contrast, monochrome. Heavy vignette, deep grain, murky atmosphere.
+// Scene materials (poles/ball/field) keep faint hue separation for gameplay
+// readability; all UI chrome (HUD/menu/buttons) is fully desaturated.
+const UI = {
+  void:     "#0A0C0D",
+  depth1:   "#13171A",
+  depth2:   "#1A1F22",
+  silt:     "rgba(180,190,188,0.10)",
+  siltSoft: "rgba(180,190,188,0.05)",
+  haze:     "rgba(195,202,200,0.42)",
+  hazeDim:  "rgba(195,202,200,0.22)",
+  ghost:    "rgba(195,202,200,0.10)",
+  bone:     "#C7CDC9",
+  attract:  "#9FB0AC",
+  repel:    "#B0A29B",
+};
+
 // ─── Math helpers ─────────────────────────────────────────────────────────────
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -295,7 +313,7 @@ function Arena() {
       {[1, -1].map(s => (
         <mesh key={s} position={[-(hW + 0.09), 0.2, s * (hH / 2 + gH / 2)]}>
           <boxGeometry args={[0.18, 0.4, seg]} />
-          <meshStandardMaterial color="#1A2535" metalness={0.6} roughness={0.4} emissive="#00FFFF" emissiveIntensity={0.05} />
+          <meshStandardMaterial color="#1A2535" metalness={0.6} roughness={0.4} emissive={UI.attract} emissiveIntensity={0.04} />
         </mesh>
       ))}
 
@@ -303,7 +321,7 @@ function Arena() {
       {[1, -1].map(s => (
         <mesh key={s} position={[(hW + 0.09), 0.2, s * (hH / 2 + gH / 2)]}>
           <boxGeometry args={[0.18, 0.4, seg]} />
-          <meshStandardMaterial color="#1A2535" metalness={0.6} roughness={0.4} emissive="#FF00FF" emissiveIntensity={0.05} />
+          <meshStandardMaterial color="#1A2535" metalness={0.6} roughness={0.4} emissive={UI.repel} emissiveIntensity={0.04} />
         </mesh>
       ))}
 
@@ -314,8 +332,8 @@ function Arena() {
       </mesh>
 
       {/* Goal lights */}
-      <pointLight position={[-hW - 0.5, 0.5, 0]} color="#00FFFF" intensity={2 + goalFlash * 6} distance={4} decay={2} />
-      <pointLight position={[ hW + 0.5, 0.5, 0]} color="#FF00FF" intensity={2 + goalFlash * 6} distance={4} decay={2} />
+      <pointLight position={[-hW - 0.5, 0.5, 0]} color={UI.attract} intensity={1.4 + goalFlash * 4} distance={4} decay={2} />
+      <pointLight position={[ hW + 0.5, 0.5, 0]} color={UI.repel} intensity={1.4 + goalFlash * 4} distance={4} decay={2} />
     </group>
   );
 }
@@ -339,11 +357,11 @@ function Ball() {
 
     if (meshRef.current) {
       meshRef.current.position.set(ball.x, BALL_R, ball.z);
-      meshRef.current.material.emissiveIntensity = 0.3 + spdN * 1.4;
+      meshRef.current.material.emissiveIntensity = 0.22 + spdN * 0.7;
     }
     if (lightRef.current) {
       lightRef.current.position.set(ball.x, BALL_R + 0.3, ball.z);
-      lightRef.current.intensity = 1.5 + spdN * 4;
+      lightRef.current.intensity = 0.9 + spdN * 1.8;
     }
 
     // Trail
@@ -360,7 +378,7 @@ function Ball() {
       m.visible = true;
       m.position.set(h.x, 0.06, h.z);
       m.scale.setScalar(BALL_R * (0.2 + 0.8 * age));
-      _trailColor.setHSL(h.s > 13 ? 0.83 : 0.53, 1, 0.65);
+      _trailColor.setHSL(h.s > 13 ? 0.5 : 0.45, 0.08, 0.62);
       m.material.color.copy(_trailColor);
       m.material.opacity = age * 0.5;
     });
@@ -384,10 +402,10 @@ function Ball() {
 }
 
 // ─── Pole ─────────────────────────────────────────────────────────────────────
-const CA3 = new THREE.Color(C_ATTRACT);
-const CR3 = new THREE.Color(C_REPEL);
-const CI_P1  = new THREE.Color("#003344");
-const CI_BOT = new THREE.Color("#330033");
+const CA3 = new THREE.Color(UI.attract);
+const CR3 = new THREE.Color(UI.repel);
+const CI_P1  = new THREE.Color("#1A2624");
+const CI_BOT = new THREE.Color("#26201C");
 
 function Pole({ side }) {
   const meshRef  = useRef();
@@ -405,12 +423,12 @@ function Pole({ side }) {
     if (meshRef.current) {
       meshRef.current.position.set(pole.x, POLE_R * 0.5, pole.z);
       meshRef.current.material.emissive.copy(emRef.current);
-      meshRef.current.material.emissiveIntensity = active ? 2.8 : 0.12;
+      meshRef.current.material.emissiveIntensity = active ? 1.1 : 0.1;
     }
     if (lightRef.current) {
       lightRef.current.position.set(pole.x, 1.0, pole.z);
       lightRef.current.color.copy(active ? (attract ? CA3 : CR3) : new THREE.Color(0, 0, 0));
-      lightRef.current.intensity = active ? 9 : 0;
+      lightRef.current.intensity = active ? 3.2 : 0;
     }
     if (ringRef.current) {
       const pulse = active ? 1 + 0.3 * Math.sin(Date.now() * 0.006) : 0;
@@ -425,9 +443,9 @@ function Pole({ side }) {
       <mesh ref={meshRef} castShadow position={[isP1 ? -5.5 : 5.5, POLE_R * 0.5, 0]}>
         <cylinderGeometry args={[POLE_R, POLE_R * 0.85, POLE_R, 32]} />
         <meshStandardMaterial
-          color={isP1 ? "#004455" : "#440033"}
-          emissive={isP1 ? "#003344" : "#330033"}
-          emissiveIntensity={0.12} metalness={0.9} roughness={0.1}
+          color={isP1 ? "#1E2A28" : "#2A2420"}
+          emissive={isP1 ? "#1A2624" : "#26201C"}
+          emissiveIntensity={0.12} metalness={0.75} roughness={0.3}
         />
       </mesh>
       <mesh ref={ringRef} position={[isP1 ? -5.5 : 5.5, POLE_R + 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -464,11 +482,11 @@ function GhostPoles() {
         if (c.isMesh) {
           c.material.color.copy(col);
           c.material.emissive.copy(col);
-          c.material.emissiveIntensity = 0.4 + pulse * 0.8;
+          c.material.emissiveIntensity = 0.2 + pulse * 0.4;
           c.material.opacity = 0.25 + pulse * 0.35;
         }
       });
-      if (lr) { lr.position.set(g.x, 0.5, g.z); lr.color.copy(col); lr.intensity = 0.5 + pulse; }
+      if (lr) { lr.position.set(g.x, 0.5, g.z); lr.color.copy(col); lr.intensity = 0.25 + pulse * 0.5; }
     });
   });
 
@@ -478,15 +496,15 @@ function GhostPoles() {
         <group key={i} ref={el => refs.current[i] = el} visible={false}>
           <mesh>
             <torusGeometry args={[POLE_R * 0.9, 0.05, 8, 32]} />
-            <meshStandardMaterial color="#00FFFF" emissive="#00FFFF" emissiveIntensity={1} transparent opacity={0.5} />
+            <meshStandardMaterial color={UI.attract} emissive={UI.attract} emissiveIntensity={0.5} transparent opacity={0.38} />
           </mesh>
           <mesh>
             <torusGeometry args={[POLE_R * 1.7, 0.03, 8, 32]} />
-            <meshStandardMaterial color="#00FFFF" emissive="#00FFFF" emissiveIntensity={0.6} transparent opacity={0.3} />
+            <meshStandardMaterial color={UI.attract} emissive={UI.attract} emissiveIntensity={0.3} transparent opacity={0.22} />
           </mesh>
           <mesh>
             <sphereGeometry args={[0.06, 8, 8]} />
-            <meshStandardMaterial color="#fff" emissive="#fff" emissiveIntensity={2} transparent opacity={0.8} />
+            <meshStandardMaterial color={UI.bone} emissive={UI.bone} emissiveIntensity={0.9} transparent opacity={0.6} />
           </mesh>
         </group>
       ))}
@@ -550,11 +568,11 @@ function VectorField() {
       const hA = p1.mode === "ATTRACT" || bot.mode === "ATTRACT" || ghosts.some(g => g.mode === "ATTRACT");
       const hR = p1.mode === "REPEL"   || bot.mode === "REPEL"   || ghosts.some(g => g.mode === "REPEL");
       const alpha = clamp(mag * 0.07, 0.05, 0.8);
-      if (hA && hR) fieldCol.setHSL(0.75, 1, 0.5);
-      else if (hA)  fieldCol.set(C_ATTRACT);
-      else if (hR)  fieldCol.set(C_REPEL);
-      else          fieldCol.setHSL(0.6, 0.4, 0.15);
-      fieldCol.multiplyScalar(alpha * 2.2);
+      if (hA && hR) fieldCol.setHSL(0.5, 0.12, 0.55);
+      else if (hA)  fieldCol.set(UI.attract);
+      else if (hR)  fieldCol.set(UI.repel);
+      else          fieldCol.setHSL(0.5, 0.06, 0.22);
+      fieldCol.multiplyScalar(alpha * 1.6);
       mesh.setColorAt(i, fieldCol);
     }
     mesh.instanceMatrix.needsUpdate = true;
@@ -568,9 +586,31 @@ function VectorField() {
   );
 }
 
-// ─── HUD ──────────────────────────────────────────────────────────────────────
-const mc = m => m === "ATTRACT" ? C_ATTRACT : m === "REPEL" ? C_REPEL : "rgba(255,255,255,0.22)";
+// --- HUD ----------------------------------------------------------------------
+const mc = m => m === "ATTRACT" ? UI.attract : m === "REPEL" ? UI.repel : UI.hazeDim;
 const ml = m => m === "ATTRACT" ? "ATTRACT" : m === "REPEL" ? "REPEL" : "STANDBY";
+const pad2 = n => String(n).padStart(2, "0");
+
+function ModeDot({ mode }) {
+  const active = mode !== "NONE";
+  const color  = mc(mode);
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+      <div style={{
+        width:5, height:5, borderRadius:"50%",
+        background: active ? color : UI.silt,
+        boxShadow: active ? `0 0 6px ${color}, 0 0 1px ${color}` : "none",
+        transition:"all 0.15s",
+      }} />
+      <span style={{
+        color: active ? color : UI.ghost,
+        fontSize:7, letterSpacing:"0.2em",
+        fontFamily:"'Courier New',monospace",
+        transition:"color 0.15s",
+      }}>{ml(mode)}</span>
+    </div>
+  );
+}
 
 function HUD() {
   const score    = useStore(s => s.score);
@@ -579,62 +619,135 @@ function HUD() {
   const gameMode = useStore(s => s.gameMode);
   return (
     <div style={{ position:"fixed", inset:0, pointerEvents:"none", fontFamily:"'Courier New',monospace", zIndex:10 }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"5px 12px", background:"rgba(0,0,0,0.55)", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-        <div style={{ display:"flex", flexDirection:"column", gap:2, minWidth:80 }}>
-          <span style={{ color:C_ATTRACT, fontSize:8, letterSpacing:3, opacity:0.7 }}>PLAYER_1</span>
-          <span style={{ color:C_ATTRACT, fontSize:18, fontWeight:"bold", lineHeight:1 }}>{score.p1}</span>
-          <span style={{ color:mc(p1Mode), fontSize:7, letterSpacing:2, padding:"1px 4px", border:`1px solid ${mc(p1Mode)}`, display:"inline-block", opacity:p1Mode!=="NONE"?1:0.3 }}>{ml(p1Mode)}</span>
+      <div style={{
+        display:"flex", justifyContent:"space-between", alignItems:"center",
+        padding:"7px 14px",
+        background:`linear-gradient(180deg, ${UI.depth1}E8 0%, ${UI.void}D0 100%)`,
+        borderBottom:`1px solid ${UI.silt}`,
+        boxShadow:`inset 0 -1px 0 rgba(0,0,0,0.4)`,
+        position:"relative",
+      }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:3, minWidth:78 }}>
+          <span style={{ color:UI.hazeDim, fontSize:7, letterSpacing:"0.25em", opacity:0.8 }}>PLAYER_1</span>
+          <span style={{
+            color:UI.bone, fontSize:22, fontWeight:"bold", lineHeight:1,
+            letterSpacing:"0.03em",
+            textShadow:`0 0 14px ${UI.attract}55, 0 1px 0 rgba(0,0,0,0.6)`,
+          }}>{pad2(score.p1)}</span>
+          <ModeDot mode={p1Mode} />
         </div>
+
         <div style={{ textAlign:"center" }}>
-          <div style={{ color:"rgba(255,255,255,0.85)", fontSize:11, letterSpacing:5, fontWeight:"bold" }}>MAG·PHYS</div>
-          <div style={{ color:"rgba(255,255,255,0.2)", fontSize:7, letterSpacing:3, marginTop:1 }}>{gameMode==="2P"?"LOCAL 2P":"VS BOT"} · 3D</div>
+          <div style={{ color:UI.haze, fontSize:10, letterSpacing:"0.35em", fontWeight:"bold" }}>MAG&middot;PHYS</div>
+          <div style={{ color:UI.ghost, fontSize:7, letterSpacing:"0.2em", marginTop:2 }}>
+            {gameMode==="2P"?"LOCAL 2P":"VS BOT"} &middot; 3D
+          </div>
         </div>
-        <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:2, minWidth:80 }}>
-          <span style={{ color:C_REPEL, fontSize:8, letterSpacing:3, opacity:0.7 }}>{gameMode==="2P"?"PLAYER_2":"SYS_BOT"}</span>
-          <span style={{ color:C_REPEL, fontSize:18, fontWeight:"bold", lineHeight:1 }}>{score.bot}</span>
-          <span style={{ color:mc(botMode), fontSize:7, letterSpacing:2, padding:"1px 4px", border:`1px solid ${mc(botMode)}`, display:"inline-block", opacity:botMode!=="NONE"?1:0.3 }}>{ml(botMode)}</span>
+
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:3, minWidth:78 }}>
+          <span style={{ color:UI.hazeDim, fontSize:7, letterSpacing:"0.25em", opacity:0.8 }}>
+            {gameMode==="2P"?"PLAYER_2":"SYS_BOT"}
+          </span>
+          <span style={{
+            color:UI.bone, fontSize:22, fontWeight:"bold", lineHeight:1,
+            letterSpacing:"0.03em",
+            textShadow:`0 0 14px ${UI.repel}55, 0 1px 0 rgba(0,0,0,0.6)`,
+          }}>{pad2(score.bot)}</span>
+          <ModeDot mode={botMode} />
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Controls ─────────────────────────────────────────────────────────────────
+// --- Controls -------------------------------------------------------------------
+function SwitchButton({ label, color, onPress, onRelease }) {
+  const [pressed, setPressed] = useState(false);
+  return (
+    <button
+      onPointerDown={() => { setPressed(true);  onPress(); }}
+      onPointerUp={()   => { setPressed(false); onRelease(); }}
+      onPointerLeave={() => { setPressed(false); onRelease(); }}
+      style={{
+        flex:1, padding:"11px 0",
+        background: pressed
+          ? `linear-gradient(180deg, ${color}1A 0%, ${color}28 100%)`
+          : `linear-gradient(180deg, ${UI.depth2} 0%, ${UI.depth1} 100%)`,
+        border:`1px solid ${pressed ? color : UI.silt}`,
+        borderBottom: pressed ? `1px solid ${color}99` : `3px solid ${UI.void}`,
+        borderRadius:2,
+        color: pressed ? color : UI.hazeDim,
+        fontSize:9, letterSpacing:"0.2em",
+        fontFamily:"'Courier New',monospace",
+        cursor:"pointer", touchAction:"none", userSelect:"none",
+        transform: pressed ? "translateY(2px)" : "translateY(0)",
+        boxShadow: pressed
+          ? `inset 0 2px 5px rgba(0,0,0,0.5)`
+          : `0 2px 0 ${UI.void}`,
+        transition:"transform 0.05s, box-shadow 0.05s, border-color 0.1s, color 0.1s",
+      }}
+    >{label}</button>
+  );
+}
+
+function SliderRail({ value, onChange, color, label }) {
+  const pct = (value + 1) / 2 * 100;
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:9, flex:1 }}>
+      <span style={{ color:UI.hazeDim, fontSize:7, letterSpacing:"0.25em", whiteSpace:"nowrap" }}>{label}</span>
+      <div style={{
+        flex:1, height:2, position:"relative", borderRadius:1,
+        background:`linear-gradient(90deg, ${color}40 0%, ${color}65 ${pct}%, ${UI.silt} ${pct}%)`,
+      }}>
+        <input type="range" min="-100" max="100" value={Math.round(value*100)}
+          onChange={e => onChange(parseInt(e.target.value)/100)}
+          style={{ position:"absolute", inset:"-9px 0", opacity:0, cursor:"pointer", width:"100%", height:"calc(100% + 18px)" }}
+        />
+        <div style={{
+          position:"absolute", left:`${pct}%`, top:"50%", transform:"translate(-50%,-50%)",
+          width:9, height:15,
+          background:`linear-gradient(180deg, ${color}BB 0%, ${color}55 100%)`,
+          border:`1px solid ${color}`, borderRadius:1,
+          pointerEvents:"none",
+        }} />
+      </div>
+    </div>
+  );
+}
+
 function Controls({ keysRef, s1Ref, s2Ref }) {
   const [sv1, setSv1] = useState(0);
   const [sv2, setSv2] = useState(0);
   const gameMode = useStore(s => s.gameMode);
   const press   = k => { keysRef.current[k] = true; };
   const release = k => { keysRef.current[k] = false; };
-  const btn = (label, color, k) => (
-    <button
-      onPointerDown={() => press(k)} onPointerUp={() => release(k)} onPointerLeave={() => release(k)}
-      style={{ flex:1, padding:"10px 0", background:color===C_ATTRACT?"rgba(0,255,255,0.07)":"rgba(255,0,255,0.07)", border:`1px solid ${color}`, color, fontSize:9, letterSpacing:2, fontFamily:"'Courier New',monospace", cursor:"pointer", touchAction:"none", userSelect:"none" }}
-    >{label}</button>
-  );
+
   return (
-    <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"rgba(0,0,0,0.78)", backdropFilter:"blur(12px)", borderTop:"1px solid rgba(255,255,255,0.06)", padding:"6px 10px 10px", display:"flex", flexDirection:gameMode==="2P"?"row":"column", gap:8, zIndex:20, fontFamily:"'Courier New',monospace" }}>
-      {/* P1 */}
-      <div style={{ flex:1, display:"flex", flexDirection:"column", gap:6, borderRight:gameMode==="2P"?"1px solid rgba(255,255,255,0.07)":"none", paddingRight:gameMode==="2P"?10:0 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <span style={{ color:C_ATTRACT, fontSize:7, letterSpacing:3, opacity:0.7, whiteSpace:"nowrap" }}>P1 · Z</span>
-          <input type="range" min="-100" max="100" value={Math.round(sv1*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setSv1(v);s1Ref.current=v;}} style={{ flex:1, accentColor:C_ATTRACT }} />
-        </div>
+    <div style={{
+      position:"fixed", bottom:0, left:0, right:0,
+      background:`linear-gradient(180deg, ${UI.depth1}E8 0%, ${UI.void}F2 100%)`,
+      backdropFilter:"blur(10px)",
+      borderTop:`1px solid ${UI.silt}`,
+      boxShadow:"inset 0 1px 0 rgba(255,255,255,0.02)",
+      padding:"7px 11px 11px", display:"flex",
+      flexDirection: gameMode==="2P" ? "row" : "column",
+      gap:8, zIndex:20, fontFamily:"'Courier New',monospace",
+    }}>
+      <div style={{ flex:1, display:"flex", flexDirection:"column", gap:6,
+        borderRight: gameMode==="2P" ? `1px solid ${UI.silt}` : "none",
+        paddingRight: gameMode==="2P" ? 11 : 0 }}>
+        <SliderRail value={sv1} onChange={v=>{setSv1(v);s1Ref.current=v;}} color={UI.attract} label="P1 &middot; Z" />
         <div style={{ display:"flex", gap:8 }}>
-          {btn("− ATTRACT", C_ATTRACT, "q")}
-          {btn("+ REPEL",   C_REPEL,   "a")}
+          <SwitchButton label="&minus; ATTRACT" color={UI.attract} onPress={()=>press("q")} onRelease={()=>release("q")} />
+          <SwitchButton label="+ REPEL"   color={UI.repel}   onPress={()=>press("a")} onRelease={()=>release("a")} />
         </div>
       </div>
-      {/* P2 */}
       {gameMode==="2P" && (
-        <div style={{ flex:1, display:"flex", flexDirection:"column", gap:6, paddingLeft:10 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <span style={{ color:C_REPEL, fontSize:7, letterSpacing:3, opacity:0.7, whiteSpace:"nowrap" }}>P2 · Z</span>
-            <input type="range" min="-100" max="100" value={Math.round(sv2*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setSv2(v);s2Ref.current=v;}} style={{ flex:1, accentColor:C_REPEL }} />
-          </div>
+        <div style={{ flex:1, display:"flex", flexDirection:"column", gap:6, paddingLeft:11 }}>
+          <SliderRail value={sv2} onChange={v=>{setSv2(v);s2Ref.current=v;}} color={UI.repel} label="P2 &middot; Z" />
           <div style={{ display:"flex", gap:8 }}>
-            {btn("− ATTRACT", C_ATTRACT, "o")}
-            {btn("+ REPEL",   C_REPEL,   "p")}
+            <SwitchButton label="&minus; ATTRACT" color={UI.attract} onPress={()=>press("o")} onRelease={()=>release("o")} />
+            <SwitchButton label="+ REPEL"   color={UI.repel}   onPress={()=>press("p")} onRelease={()=>release("p")} />
           </div>
         </div>
       )}
@@ -642,52 +755,67 @@ function Controls({ keysRef, s1Ref, s2Ref }) {
   );
 }
 
-// ─── Overlays ─────────────────────────────────────────────────────────────────
+// --- Overlays ---------------------------------------------------------------------
 function MenuOverlay() {
-  const { startGame, gameMode, setGameMode } = useStore(s => ({ startGame:s.startGame, gameMode:s.gameMode, setGameMode:s.setGameMode }));
-  const mbtn = (label, mode, color) => (
-    <button onClick={() => startGame(mode)}
-      style={{ background:gameMode===mode?color+"22":"transparent", border:`1px solid ${gameMode===mode?color:"rgba(255,255,255,0.2)"}`, color:gameMode===mode?color:"rgba(255,255,255,0.4)", padding:"10px 26px", fontSize:11, letterSpacing:3, cursor:"pointer", fontFamily:"'Courier New',monospace" }}
-      onMouseEnter={()=>setGameMode(mode)}
-    >{label}</button>
-  );
+  const { startGame, gameMode } = useStore(s => ({ startGame:s.startGame, gameMode:s.gameMode }));
   return (
-    <div style={{ position:"fixed", inset:0, zIndex:30, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:"rgba(2,5,9,0.92)", fontFamily:"'Courier New',monospace" }}>
-      <div style={{ color:"rgba(0,255,255,0.4)", fontSize:9, letterSpacing:8, marginBottom:6 }}>MAGNETIC ARCADE</div>
-      <div style={{ color:"#fff", fontSize:30, fontWeight:"bold", letterSpacing:8, marginBottom:4, textShadow:`0 0 30px ${C_ATTRACT}` }}>MAG·PHYS</div>
-      <div style={{ color:"rgba(255,255,255,0.2)", fontSize:9, letterSpacing:4, marginBottom:28 }}>3D SIMULATOR</div>
-      <div style={{ display:"flex", gap:12, marginBottom:22 }}>
-        {mbtn("VS BOT",    "BOT", C_ATTRACT)}
-        {mbtn("LOCAL 2P",  "2P",  C_REPEL)}
+    <div style={{
+      position:"fixed", inset:0, zIndex:30,
+      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+      background: UI.void,
+      fontFamily:"'Courier New',monospace",
+    }}>
+      <div style={{ color:UI.ghost, fontSize:9, letterSpacing:"0.45em", marginBottom:7 }}>MAGNETIC ARCADE</div>
+      <div style={{
+        color:UI.bone, fontSize:30, fontWeight:"bold", letterSpacing:"0.3em", marginBottom:5,
+        animation:"titlePulse 4s ease-in-out infinite",
+      }}>MAG&middot;PHYS</div>
+      <div style={{ color:UI.hazeDim, fontSize:9, letterSpacing:"0.3em", marginBottom:30 }}>3D SIMULATOR</div>
+
+      <div style={{ display:"flex", gap:14, marginBottom:24 }}>
+        <SwitchButton label="VS BOT"   color={UI.attract} onPress={()=>{}} onRelease={()=>startGame("BOT")} />
+        <SwitchButton label="LOCAL 2P" color={UI.repel}   onPress={()=>{}} onRelease={()=>startGame("2P")} />
       </div>
-      <div style={{ color:"rgba(255,255,255,0.3)", fontSize:9, lineHeight:2, textAlign:"center", marginBottom:4 }}>
+
+      <div style={{ color:UI.ghost, fontSize:9, lineHeight:2, textAlign:"center", marginBottom:5 }}>
         {gameMode==="BOT"
-          ? <><span style={{color:C_ATTRACT}}>W/S</span> move &nbsp;·&nbsp; <span style={{color:C_ATTRACT}}>Q</span> attract &nbsp;·&nbsp; <span style={{color:C_REPEL}}>A</span> repel</>
-          : <><span style={{color:C_ATTRACT}}>W/S · Q/A</span> &nbsp; P1 &nbsp;|&nbsp; P2 &nbsp; <span style={{color:C_REPEL}}>↑/↓ · O/P</span></>
+          ? <>W/S move &middot; Q attract &middot; A repel</>
+          : <>W/S &middot; Q/A &nbsp; P1 | P2 &nbsp; &uarr;/&darr; &middot; O/P</>
         }
       </div>
-      <div style={{ color:"rgba(255,255,255,0.18)", fontSize:8 }}>First to {SCORE_LIMIT}</div>
+      <div style={{ color:UI.ghost, fontSize:8, opacity:0.6 }}>FIRST TO {SCORE_LIMIT}</div>
     </div>
   );
 }
 
 function GameOverOverlay() {
-  const { score, winner, gameMode, startGame, setPhase } = useStore(s => ({ score:s.score, winner:s.winner, gameMode:s.gameMode, startGame:s.startGame, setPhase:s.setPhase }));
-  const wc = winner==="PLAYER" ? C_ATTRACT : C_REPEL;
-  const wl = winner==="PLAYER" ? "PLAYER 1" : gameMode==="2P" ? "PLAYER 2" : "SYS·BOT";
+  const { score, winner, gameMode, startGame, setPhase } = useStore(s => ({
+    score:s.score, winner:s.winner, gameMode:s.gameMode, startGame:s.startGame, setPhase:s.setPhase,
+  }));
+  const wc = winner==="PLAYER" ? UI.attract : UI.repel;
+  const wl = winner==="PLAYER" ? "PLAYER 1" : gameMode==="2P" ? "PLAYER 2" : "SYS&middot;BOT";
   return (
-    <div style={{ position:"fixed", inset:0, zIndex:30, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:"rgba(2,5,9,0.92)", fontFamily:"'Courier New',monospace" }}>
-      <div style={{ color:"rgba(255,255,255,0.35)", fontSize:9, letterSpacing:6, marginBottom:14 }}>MATCH COMPLETE</div>
-      <div style={{ color:wc, fontSize:26, fontWeight:"bold", letterSpacing:6, marginBottom:6, textShadow:`0 0 24px ${wc}` }}>{wl}</div>
-      <div style={{ color:"rgba(255,255,255,0.4)", fontSize:10, letterSpacing:4, marginBottom:8 }}>FIELD DOMINANCE</div>
-      <div style={{ fontSize:22, marginBottom:28 }}>
-        <span style={{color:C_ATTRACT}}>{score.p1}</span>
-        <span style={{color:"rgba(255,255,255,0.15)",margin:"0 10px"}}>:</span>
-        <span style={{color:C_REPEL}}>{score.bot}</span>
+    <div style={{
+      position:"fixed", inset:0, zIndex:30,
+      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+      background: UI.void,
+      boxShadow:`inset 0 0 160px ${wc}18`,
+      fontFamily:"'Courier New',monospace",
+    }}>
+      <div style={{ color:UI.ghost, fontSize:9, letterSpacing:"0.35em", marginBottom:16 }}>MATCH COMPLETE</div>
+      <div style={{
+        color:wc, fontSize:30, fontWeight:"bold", letterSpacing:"0.18em", marginBottom:7,
+        textShadow:`0 0 24px ${wc}55`,
+      }} dangerouslySetInnerHTML={{ __html: wl }} />
+      <div style={{ color:UI.hazeDim, fontSize:9, letterSpacing:"0.25em", marginBottom:10 }}>FIELD DOMINANCE</div>
+      <div style={{ fontSize:24, marginBottom:30, letterSpacing:"0.05em" }}>
+        <span style={{ color:UI.attract }}>{String(score.p1).padStart(2,"0")}</span>
+        <span style={{ color:UI.ghost, margin:"0 12px" }}>:</span>
+        <span style={{ color:UI.repel }}>{String(score.bot).padStart(2,"0")}</span>
       </div>
-      <div style={{ display:"flex", gap:12 }}>
-        <button onClick={()=>startGame(gameMode)} style={{ background:"transparent", border:`1px solid ${C_ATTRACT}`, color:C_ATTRACT, padding:"10px 26px", fontSize:11, letterSpacing:3, cursor:"pointer", fontFamily:"'Courier New',monospace" }}>REMATCH</button>
-        <button onClick={()=>setPhase("MENU")}    style={{ background:"transparent", border:"1px solid rgba(255,255,255,0.25)", color:"rgba(255,255,255,0.5)", padding:"10px 26px", fontSize:11, letterSpacing:3, cursor:"pointer", fontFamily:"'Courier New',monospace" }}>MENU</button>
+      <div style={{ display:"flex", gap:14 }}>
+        <SwitchButton label="REMATCH" color={UI.attract} onPress={()=>{}} onRelease={()=>startGame(gameMode)} />
+        <SwitchButton label="MENU"    color={UI.hazeDim} onPress={()=>{}} onRelease={()=>setPhase("MENU")} />
       </div>
     </div>
   );
@@ -712,7 +840,7 @@ function Scene({ keysRef, s1Ref, s2Ref, modeRef }) {
         <VectorField />
       </>}
       <EffectComposer>
-        <Bloom intensity={1.4} luminanceThreshold={0.28} luminanceSmoothing={0.85} mipmapBlur />
+        <Bloom intensity={0.6} luminanceThreshold={0.42} luminanceSmoothing={0.95} mipmapBlur />
       </EffectComposer>
     </>
   );
@@ -738,7 +866,7 @@ export default function MagPhys3D() {
   }, []);
 
   return (
-    <div style={{ position:"fixed", inset:0, width:"100%", height:"100dvh", background:"#070B12", overflow:"hidden" }}>
+    <div style={{ position:"fixed", inset:0, width:"100%", height:"100dvh", background:UI.void, overflow:"hidden" }}>
       <Canvas
         camera={{ position:[0, 8, 2.5], fov:60, near:0.1, far:100 }}
         gl={{ antialias:true, alpha:false, powerPreference:"high-performance" }}
@@ -753,13 +881,44 @@ export default function MagPhys3D() {
       {phase === "MENU"     && <MenuOverlay />}
       {phase === "GAMEOVER" && <GameOverOverlay />}
 
+      {/* Heavy vignette -- murky underwater falloff toward all edges */}
+      <div style={{
+        position:"fixed", inset:0, zIndex:90, pointerEvents:"none",
+        background:"radial-gradient(ellipse at 50% 50%, transparent 32%, rgba(6,8,9,0.55) 78%, rgba(4,5,6,0.88) 100%)",
+      }} />
+
+      {/* Deep film grain -- animated noise texture */}
+      <div style={{
+        position:"fixed", inset:0, zIndex:91, pointerEvents:"none",
+        opacity:0.1, mixBlendMode:"overlay",
+        backgroundImage:"url(\\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\\")",
+        animation:"grainShift 0.6s steps(4) infinite",
+      }} />
+
+      {/* Soft chromatic haze -- low-contrast murk over everything */}
+      <div style={{
+        position:"fixed", inset:0, zIndex:89, pointerEvents:"none",
+        background:`linear-gradient(180deg, ${UI.void}22 0%, transparent 18%, transparent 82%, ${UI.void}30 100%)`,
+      }} />
+
       <style>{`
         *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
-        html, body { overflow:hidden; height:100%; touch-action:none; background:#070B12; }
+        html, body { overflow:hidden; height:100%; touch-action:none; background:${UI.void}; }
         input[type=range] { height:4px; cursor:pointer; }
         input[type=range]::-webkit-slider-thumb { width:20px; height:20px; border-radius:50%; }
         button:active { opacity:0.7; }
         canvas { display:block; }
+        @keyframes titlePulse {
+          0%, 100% { text-shadow: 0 0 18px ${UI.attract}33; }
+          50%       { text-shadow: 0 0 34px ${UI.attract}55, 0 0 60px ${UI.attract}18; }
+        }
+        @keyframes grainShift {
+          0%   { transform: translate(0,0); }
+          25%  { transform: translate(-1%,1%); }
+          50%  { transform: translate(1%,-1%); }
+          75%  { transform: translate(-1%,-1%); }
+          100% { transform: translate(0,0); }
+        }
       `}</style>
     </div>
   );
