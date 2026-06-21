@@ -6,7 +6,7 @@
 import { useRef, useEffect, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Text, Billboard } from "@react-three/drei";
-import { EffectComposer, Bloom, ChromaticAberration } from "@react-three/postprocessing";
+import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import { create } from "zustand";
 import * as THREE from "three";
 
@@ -512,12 +512,15 @@ function getAsteriskGeo() {
   if (_asteriskGeo) return _asteriskGeo;
   const geoms = [];
   const R = 4.1;
-  const ring = new THREE.RingGeometry(R - 0.03, R, 64);
+  
+  // Crisp outer boundary ring
+  const ring = new THREE.RingGeometry(R - 0.04, R, 64);
   geoms.push(ring);
   
-  const numSpokes = 12;
+  // 8 clean directional spokes (drawn as thin planes to minimize overdraw)
+  const numSpokes = 8;
   for (let i = 0; i < numSpokes; i++) {
-    const spoke = new THREE.PlaneGeometry(0.04, R * 2);
+    const spoke = new THREE.PlaneGeometry(0.04, R * 1.95);
     spoke.rotateZ((i * Math.PI) / numSpokes);
     geoms.push(spoke);
   }
@@ -536,8 +539,8 @@ function MagneticAura({ isP1 }) {
     
     if (active) {
       meshRef.current.visible = true;
-      meshRef.current.position.set(pole.x, 0.02, pole.z);
-      meshRef.current.material.color.copy(attract ? CA3 : CR3).multiplyScalar(1.6);
+      meshRef.current.position.set(pole.x, 0.05, pole.z);
+      meshRef.current.material.color.set(attract ? UI.attract : UI.repel);
     } else {
       meshRef.current.visible = false;
     }
@@ -545,7 +548,7 @@ function MagneticAura({ isP1 }) {
 
   return (
     <mesh ref={meshRef} geometry={getAsteriskGeo()} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
-      <meshBasicMaterial transparent opacity={0.55} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} depthTest={false} color="#FFFFFF" />
+      <meshBasicMaterial transparent opacity={0.25} side={THREE.DoubleSide} depthWrite={false} color="#FFFFFF" />
     </mesh>
   );
 }
@@ -1046,21 +1049,9 @@ function GameOverOverlay() {
 
 // ─── Post Processing ────────────────────────────────────────────────────────
 function PostProcess() {
-  const chrRef = useRef();
-  
-  useFrame(() => {
-    const { cameraShake } = useStore.getState();
-    if (chrRef.current) {
-      const amt = 0.007 * cameraShake;
-      chrRef.current.offset.x = amt;
-      chrRef.current.offset.y = amt;
-    }
-  });
-
   return (
     <EffectComposer disableNormalPass>
-      <Bloom intensity={2.5} luminanceThreshold={0.5} luminanceSmoothing={0.9} mipmapBlur />
-      <ChromaticAberration ref={chrRef} offset={[0, 0]} radialModulation={false} />
+      <Bloom intensity={1.5} luminanceThreshold={0.4} luminanceSmoothing={0.8} />
     </EffectComposer>
   );
 }
