@@ -507,78 +507,46 @@ const CR3 = new THREE.Color(UI.repel);
 const CI_P1  = new THREE.Color("#003344");
 const CI_BOT = new THREE.Color("#330033");
 
-function MagneticAura({ isP1 }) {
-  const groupRef = useRef();
-  const ringsRef = useRef([]);
-  const rangeRefs = useRef([]);
+let _asteriskGeo = null;
+function getAsteriskGeo() {
+  if (_asteriskGeo) return _asteriskGeo;
+  const geoms = [];
+  const R = 4.1;
+  const ring = new THREE.RingGeometry(R - 0.03, R, 64);
+  geoms.push(ring);
+  
+  const numSpokes = 12;
+  for (let i = 0; i < numSpokes; i++) {
+    const spoke = new THREE.PlaneGeometry(0.04, R * 2);
+    spoke.rotateZ((i * Math.PI) / numSpokes);
+    geoms.push(spoke);
+  }
+  _asteriskGeo = mergeIndexed(geoms);
+  return _asteriskGeo;
+}
 
-  useFrame(({ clock }) => {
-    if (!groupRef.current) return;
-    const t = clock.elapsedTime;
+function MagneticAura({ isP1 }) {
+  const meshRef = useRef();
+
+  useFrame(() => {
+    if (!meshRef.current) return;
     const pole = isP1 ? useStore.getState().p1 : useStore.getState().bot;
     const active = pole.mode !== "NONE";
     const attract = pole.mode === "ATTRACT";
     
     if (active) {
-      groupRef.current.visible = true;
-      const jitterX = Math.sin(t * 40) * 0.04;
-      const jitterZ = Math.cos(t * 35) * 0.04;
-      groupRef.current.position.set(pole.x + jitterX, 0.02, pole.z + jitterZ);
-      
-      const speed = 7;
-      ringsRef.current.forEach((r, i) => {
-        if (!r) return;
-        // Elastic outward expansion cycle
-        const rawPhase = (t * speed * 0.2 + i * 0.33) % 1.0; 
-        const scale = 0.5 + Math.pow(rawPhase, 0.4) * 2.8;
-        r.scale.setScalar(scale);
-        r.material.opacity = (1 - rawPhase) * 0.7;
-        r.material.color.copy(attract ? CA3 : CR3);
-      });
-      
-      // Minimal, highly visible static range indicator boundary
-      const rangeRing = rangeRefs.current[0];
-      if (rangeRing) {
-        const effectiveRangeScale = 7.5; // Fixed radius for the reach indicator (approx 4.1 world units)
-        rangeRing.scale.setScalar(rangeRing.scale.x + (effectiveRangeScale - rangeRing.scale.x) * 0.3);
-        
-        // High visibility solid pulse, not a moving ripple
-        rangeRing.material.opacity = 0.7 + 0.3 * Math.sin(t * 8); 
-        
-        // Boost color intensity slightly for heavy bloom
-        rangeRing.material.color.copy(attract ? CA3 : CR3).multiplyScalar(1.5);
-      }
+      meshRef.current.visible = true;
+      meshRef.current.position.set(pole.x, 0.02, pole.z);
+      meshRef.current.material.color.copy(attract ? CA3 : CR3).multiplyScalar(1.6);
     } else {
-      const rangeRing = rangeRefs.current[0];
-      if (rangeRing) {
-        // Snap shrink when deactivated
-        rangeRing.scale.setScalar(rangeRing.scale.x + (0.001 - rangeRing.scale.x) * 0.4);
-        if (rangeRing.scale.x < 0.1) {
-          groupRef.current.visible = false;
-        }
-      } else {
-        groupRef.current.visible = false;
-      }
-      
-      // Hide inner rings immediately to show power-down state clearly
-      ringsRef.current.forEach(r => { if (r) r.material.opacity = 0; });
+      meshRef.current.visible = false;
     }
   });
 
   return (
-    <group ref={groupRef} visible={false}>
-      <mesh ref={el => rangeRefs.current[0] = el} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
-        {/* Very thin, sharp ring for max visibility without clutter */}
-        <ringGeometry args={[POLE_R * 0.985, POLE_R * 1.0, 64]} />
-        <meshBasicMaterial transparent opacity={0} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} depthTest={false} color="#FFFFFF" />
-      </mesh>
-      {[0, 1, 2].map(i => (
-        <mesh key={`ring-${i}`} ref={el => ringsRef.current[i] = el} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[POLE_R * 0.8, POLE_R * 0.95, 32]} />
-          <meshBasicMaterial transparent opacity={0} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} color="#FFFFFF" />
-        </mesh>
-      ))}
-    </group>
+    <mesh ref={meshRef} geometry={getAsteriskGeo()} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
+      <meshBasicMaterial transparent opacity={0.55} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} depthTest={false} color="#FFFFFF" />
+    </mesh>
   );
 }
 
