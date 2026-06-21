@@ -26,8 +26,8 @@ const GHOST_DRIFT    = 0.9;
 const GHOST_MIN      = 2.2;
 const GHOST_MAX      = 5.5;
 const TRAIL_LEN      = 28;
-const FIELD_COLS     = 20;
-const FIELD_ROWS     = 13;
+const FIELD_COLS     = 28;
+const FIELD_ROWS     = 18;
 const FIELD_COUNT    = FIELD_COLS * FIELD_ROWS;
 
 const C_ATTRACT = "#00FFFF";
@@ -377,14 +377,35 @@ function Arena() {
 }
 
 // ─── Ball ─────────────────────────────────────────────────────────────────────
-const _ballColor  = new THREE.Color();
 const _trailColor = new THREE.Color();
+
+function buildTail() {
+  // Wide near the ball, tapering to a point -- built along +Z (same axis
+  // convention as the arrows) so a single rotation.y aims it. Vertex colors
+  // are baked from white (near ball) fading to black (tail tip); with
+  // additive blending on a near-black background that reads as a smooth
+  // alpha fade without needing UV/alphaMap, which can't be verified here.
+  const len = 1;
+  const geo = new THREE.CylinderGeometry(0.001, BALL_R * 1.05, len, 10, 1, true);
+  geo.rotateX(Math.PI / 2);
+  geo.translate(0, 0, len / 2);
+  const posAttr = geo.attributes.position;
+  const colors = new Float32Array(posAttr.count * 3);
+  for (let i = 0; i < posAttr.count; i++) {
+    const t = clamp(posAttr.getZ(i) / len, 0, 1);
+    const b = 1 - t;
+    colors[i * 3] = b; colors[i * 3 + 1] = b; colors[i * 3 + 2] = b;
+  }
+  geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  return geo;
+}
 
 function Ball() {
   const meshRef  = useRef();
   const lightRef = useRef();
-  const trailRef = useRef(Array.from({ length: TRAIL_LEN }, () => useRef()));
-  const histRef  = useRef([]);
+  const tailRef  = useRef();
+  const tailGeoRef = useRef();
+  if (!tailGeoRef.current) tailGeoRef.current = buildTail();
 
   useFrame(() => {
     const { ball, phase } = useStore.getState();
@@ -402,34 +423,23 @@ function Ball() {
       lightRef.current.intensity = 1.5 + spdN * 4;
     }
 
-    // Trail
-    const hist = histRef.current;
-    hist.push({ x: ball.x, z: ball.z, s: spd });
-    if (hist.length > TRAIL_LEN) hist.shift();
-
-    trailRef.current.forEach((r, i) => {
-      const m = r.current;
-      if (!m) return;
-      if (i >= hist.length) { m.visible = false; return; }
-      const h   = hist[i];
-      const age = i / hist.length;
-      m.visible = true;
-      m.position.set(h.x, 0.06, h.z);
-      m.scale.setScalar(BALL_R * (0.2 + 0.8 * age));
-      _trailColor.setHSL(h.s > 13 ? 0.83 : 0.53, 1, 0.65);
-      m.material.color.copy(_trailColor);
-      m.material.opacity = age * 0.5;
-    });
+    if (tailRef.current) {
+      tailRef.current.position.set(ball.x, BALL_R, ball.z);
+      // Tail points opposite the direction of travel -- same world-direction
+      // mapping convention used by the vector field arrows, just reversed.
+      tailRef.current.rotation.set(0, Math.atan2(-ball.vx, -ball.vz), 0);
+      tailRef.current.scale.set(1, 1, clamp(spd * 0.09, 0.22, 2.6));
+      _trailColor.setHSL(spd > 13 ? 0.83 : 0.53, 1, 0.68);
+      tailRef.current.material.color.copy(_trailColor);
+      tailRef.current.material.opacity = 0.5 + spdN * 0.4;
+    }
   });
 
   return (
     <group>
-      {Array.from({ length: TRAIL_LEN }).map((_, i) => (
-        <mesh key={i} ref={trailRef.current[i]} visible={false}>
-          <sphereGeometry args={[BALL_R, 6, 6]} />
-          <meshBasicMaterial transparent opacity={0} />
-        </mesh>
-      ))}
+      <mesh ref={tailRef} geometry={tailGeoRef.current}>
+        <meshBasicMaterial vertexColors transparent opacity={0.6} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </mesh>
       <mesh ref={meshRef} castShadow>
         <sphereGeometry args={[BALL_R, 32, 32]} />
         <meshStandardMaterial color="#E8E8FF" emissive="#8899FF" emissiveIntensity={0.3} metalness={0.95} roughness={0.05} envMapIntensity={2} />
@@ -660,7 +670,7 @@ function VectorField() {
         continue;
       }
       dummy.rotation.set(0, Math.atan2(fx, fz), 0);
-      dummy.scale.set(1, 1, clamp(mag * 0.26, 0.15, 1.5));
+      dummy.scale.set(1, 1, clamp(mag * 0.22, 0.12, 2.2));
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
 
