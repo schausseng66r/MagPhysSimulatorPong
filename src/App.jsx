@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Environment } from "@react-three/drei";
+import { Environment, Text, Billboard } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import { create } from "zustand";
 import * as THREE from "three";
@@ -445,40 +445,54 @@ const CR3 = new THREE.Color(UI.repel);
 const CI_P1  = new THREE.Color("#003344");
 const CI_BOT = new THREE.Color("#330033");
 
-function Pole({ side }) {
-  const meshRef  = useRef();
-  const lightRef = useRef();
-  const ringRef  = useRef();
-  const emRef    = useRef(new THREE.Color());
-  const isP1     = side === "p1";
+function Pole({ side, label }) {
+  const meshRef    = useRef();
+  const lightRef   = useRef();
+  const ringRef    = useRef();
+  const symbolRef  = useRef();
+  const labelRef   = useRef();
+  const emRef      = useRef(new THREE.Color());
+  const isP1       = side === "p1";
+  const px         = isP1 ? -5.5 : 5.5;
+
+  // Low-frequency reactive subscription -- only re-renders on mode change
+  // (press/release), drives the text glyph/color/opacity through normal
+  // React props so drei/troika handles the update safely.
+  const mode    = useStore(s => (isP1 ? s.p1.mode : s.bot.mode));
+  const active  = mode !== "NONE";
+  const attract = mode === "ATTRACT";
+  const symColor = active ? (attract ? UI.attract : UI.repel) : (isP1 ? UI.attract : UI.repel);
 
   useFrame((_, dt) => {
     const pole = isP1 ? useStore.getState().p1 : useStore.getState().bot;
-    const active  = pole.mode !== "NONE";
-    const attract = pole.mode === "ATTRACT";
-    emRef.current.lerp(active ? (attract ? CA3 : CR3) : (isP1 ? CI_P1 : CI_BOT), Math.min(1, dt * 12));
+    const activeF  = pole.mode !== "NONE";
+    const attractF = pole.mode === "ATTRACT";
+    emRef.current.lerp(activeF ? (attractF ? CA3 : CR3) : (isP1 ? CI_P1 : CI_BOT), Math.min(1, dt * 12));
 
     if (meshRef.current) {
       meshRef.current.position.set(pole.x, POLE_R * 0.5, pole.z);
       meshRef.current.material.emissive.copy(emRef.current);
-      meshRef.current.material.emissiveIntensity = active ? 2.8 : 0.12;
+      meshRef.current.material.emissiveIntensity = activeF ? 2.8 : 0.12;
     }
     if (lightRef.current) {
       lightRef.current.position.set(pole.x, 1.0, pole.z);
-      lightRef.current.color.copy(active ? (attract ? CA3 : CR3) : new THREE.Color(0, 0, 0));
-      lightRef.current.intensity = active ? 9 : 0;
+      lightRef.current.color.copy(activeF ? (attractF ? CA3 : CR3) : new THREE.Color(0, 0, 0));
+      lightRef.current.intensity = activeF ? 9 : 0;
     }
     if (ringRef.current) {
-      const pulse = active ? 1 + 0.3 * Math.sin(Date.now() * 0.006) : 0;
+      const pulse = activeF ? 1 + 0.3 * Math.sin(Date.now() * 0.006) : 0;
       ringRef.current.scale.setScalar(Math.max(pulse, 0.001));
-      ringRef.current.material.opacity = active ? 0.32 : 0;
-      ringRef.current.material.color.copy(attract ? CA3 : CR3);
+      ringRef.current.material.opacity = activeF ? 0.32 : 0;
+      ringRef.current.material.color.copy(attractF ? CA3 : CR3);
     }
+    // Position-only updates for floating text -- standard Object3D transform, safe every frame
+    if (symbolRef.current) symbolRef.current.position.set(pole.x, POLE_R + 0.42, pole.z);
+    if (labelRef.current)  labelRef.current.position.set(pole.x, POLE_R + 0.18, pole.z);
   });
 
   return (
     <group>
-      <mesh ref={meshRef} castShadow position={[isP1 ? -5.5 : 5.5, POLE_R * 0.5, 0]}>
+      <mesh ref={meshRef} castShadow position={[px, POLE_R * 0.5, 0]}>
         <cylinderGeometry args={[POLE_R, POLE_R * 0.85, POLE_R, 32]} />
         <meshStandardMaterial
           color={isP1 ? "#004455" : "#440033"}
@@ -486,11 +500,25 @@ function Pole({ side }) {
           emissiveIntensity={0.15} metalness={0.9} roughness={0.1}
         />
       </mesh>
-      <mesh ref={ringRef} position={[isP1 ? -5.5 : 5.5, POLE_R + 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh ref={ringRef} position={[px, POLE_R + 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[POLE_R * 0.6, POLE_R * 2, 32]} />
         <meshBasicMaterial transparent opacity={0} color="#00FFFF" side={THREE.DoubleSide} />
       </mesh>
       <pointLight ref={lightRef} intensity={0} distance={5} decay={2} />
+
+      {/* Floating +/- glyph, billboarded so it reads from any camera angle */}
+      <Billboard ref={symbolRef} position={[px, POLE_R + 0.42, 0]}>
+        <Text fontSize={0.34} anchorX="center" anchorY="middle" color={symColor} fillOpacity={active ? 1 : 0}>
+          {attract ? "\u2212" : "+"}
+        </Text>
+      </Billboard>
+
+      {/* Floating label, mirrors the 2D "P1"/"BOT" label under the symbol */}
+      <Billboard ref={labelRef} position={[px, POLE_R + 0.18, 0]}>
+        <Text fontSize={0.13} anchorX="center" anchorY="middle" color="rgba(255,255,255,0.6)">
+          {label}
+        </Text>
+      </Billboard>
     </group>
   );
 }
@@ -558,10 +586,17 @@ const dummy    = new THREE.Object3D();
 const fieldCol = new THREE.Color();
 
 function buildArrow() {
-  const shaft = new THREE.CylinderGeometry(0.022, 0.022, 0.28, 5);
-  shaft.translate(0, 0.14, 0);
-  const head = new THREE.ConeGeometry(0.058, 0.12, 5);
-  head.translate(0, 0.34, 0);
+  // Built lying along +Z so it lies FLAT on the table and rotation.y around
+  // the vertical axis actually points it toward the force direction --
+  // previously this was built along +Y (vertical peg), so the rotation did
+  // nothing visually. This is the fix for "arrows on the floor."
+  const shaftLen = 0.3, headLen = 0.15;
+  const shaft = new THREE.CylinderGeometry(0.022, 0.022, shaftLen, 6);
+  shaft.rotateX(Math.PI / 2);
+  shaft.translate(0, 0, shaftLen / 2);
+  const head = new THREE.ConeGeometry(0.062, headLen, 6);
+  head.rotateX(Math.PI / 2);
+  head.translate(0, 0, shaftLen + headLen / 2);
   const pos = [], nor = [];
   for (const g of [shaft, head]) {
     const p = g.attributes.position.array;
@@ -596,10 +631,10 @@ function VectorField() {
       const fz = fp.fz + fb.fz + fg.fz;
       const mag = Math.sqrt(fx * fx + fz * fz);
 
-      dummy.position.set(wx, 0.02, wz);
+      dummy.position.set(wx, 0.025, wz);
       if (mag < 0.04) { dummy.scale.setScalar(0.001); dummy.updateMatrix(); mesh.setMatrixAt(i, dummy.matrix); continue; }
       dummy.rotation.set(0, Math.atan2(fx, fz), 0);
-      dummy.scale.set(1, clamp(mag * 0.26, 0.1, 1.3), 1);
+      dummy.scale.set(1, 1, clamp(mag * 0.26, 0.15, 1.5));
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
 
@@ -861,7 +896,8 @@ function GameOverOverlay() {
 
 // ─── Scene (inside Canvas) ────────────────────────────────────────────────────
 function Scene({ keysRef, s1Ref, s2Ref, modeRef }) {
-  const phase = useStore(s => s.phase);
+  const phase    = useStore(s => s.phase);
+  const gameMode = useStore(s => s.gameMode);
   return (
     <>
       <CameraRig modeRef={modeRef} />
@@ -872,8 +908,8 @@ function Scene({ keysRef, s1Ref, s2Ref, modeRef }) {
       <Arena />
       {phase === "PLAYING" && <>
         <Ball />
-        <Pole side="p1" />
-        <Pole side="bot" />
+        <Pole side="p1"  label="P1" />
+        <Pole side="bot" label={gameMode === "2P" ? "P2" : "BOT"} />
         <GhostPoles />
         <VectorField />
       </>}
