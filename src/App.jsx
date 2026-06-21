@@ -1,3 +1,8 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useRef, useEffect, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Text, Billboard } from "@react-three/drei";
@@ -222,9 +227,28 @@ function PhysicsController({ keysRef, s1Ref, s2Ref, modeRef }) {
     const p1g  = (p1.mode === "REPEL" && ball.x < -1.0 && ball.vx < 0) ? "NONE" : p1.mode;
     const fp1  = magForce(p1, ball, p1g);
     const fbot = magForce(bot, ball, bot.mode);
-    const fg   = ghosts.reduce((a, g) => { const f = ghostF(g, ball); return { fx: a.fx + f.fx, fz: a.fz + f.fz }; }, { fx: 0, fz: 0 });
+    
+    let infA = 0;
+    let infR = 0;
+    const checkInf = (mode, f) => {
+        const m = Math.sqrt(f.fx*f.fx + f.fz*f.fz);
+        if (mode === "ATTRACT") infA += m;
+        if (mode === "REPEL") infR += m;
+    };
+    checkInf(p1g, fp1);
+    checkInf(bot.mode, fbot);
+
+    const fg   = ghosts.reduce((a, g) => { 
+        const f = ghostF(g, ball); 
+        checkInf(g.mode, f);
+        return { fx: a.fx + f.fx, fz: a.fz + f.fz }; 
+    }, { fx: 0, fz: 0 });
+
     ball.vx += (fp1.fx + fbot.fx + fg.fx) * dt;
     ball.vz += (fp1.fz + fbot.fz + fg.fz) * dt;
+    
+    ball.infA = infA;
+    ball.infR = infR;
 
     // Speed cap + damping
     const bs = Math.sqrt(ball.vx ** 2 + ball.vz ** 2);
@@ -373,7 +397,7 @@ const _trailColor = new THREE.Color();
 
 function BallTrail() {
   const meshRef = useRef();
-  const trailRef = useRef(Array.from({ length: 20 }, () => ({ x: 0, z: 0, spd: 0 })));
+  const trailRef = useRef(Array.from({ length: 20 }, () => ({ x: 0, z: 0, spd: 0, infA: 0, infR: 0 })));
   const dummyPlane = new THREE.Object3D();
   
   useFrame(() => {
@@ -386,11 +410,15 @@ function BallTrail() {
       tr[i].x = tr[i - 1].x;
       tr[i].z = tr[i - 1].z;
       tr[i].spd = tr[i - 1].spd;
+      tr[i].infA = tr[i - 1].infA;
+      tr[i].infR = tr[i - 1].infR;
     }
     const spd = Math.sqrt(ball.vx**2 + ball.vz**2);
     tr[0].x = ball.x;
     tr[0].z = ball.z;
     tr[0].spd = spd;
+    tr[0].infA = ball.infA || 0;
+    tr[0].infR = ball.infR || 0;
     
     for (let i = 0; i < 20; i++) {
       const p = tr[i];
@@ -407,8 +435,16 @@ function BallTrail() {
       dummyPlane.updateMatrix();
       mesh.setMatrixAt(i, dummyPlane.matrix);
       
-      _trailColor.setHSL(p.spd > 13 ? 0.83 : 0.53, 1, 0.68);
-      _trailColor.multiplyScalar(scale * 1.5);
+      const totalInf = p.infA + p.infR;
+      const ratioA = totalInf > 0 ? p.infA / totalInf : 0.5;
+      
+      _trailColor.set("#FFFFFF");
+      const targetColor = new THREE.Color(UI.repel).lerp(new THREE.Color(UI.attract), ratioA);
+      
+      const colorIntensity = clamp(totalInf / 12, 0, 1);
+      _trailColor.lerp(targetColor, colorIntensity);
+
+      _trailColor.multiplyScalar(scale * 1.8);
       mesh.setColorAt(i, _trailColor);
     }
     mesh.instanceMatrix.needsUpdate = true;
@@ -437,12 +473,11 @@ function Ball() {
 
     if (meshRef.current) {
       meshRef.current.position.set(ball.x, BALL_R, ball.z);
-      meshRef.current.material.emissiveIntensity = 0.5 + spdN * 1.5;
+      meshRef.current.material.emissiveIntensity = 0.8 + spdN * 1.5;
     }
     if (shellRef.current) {
       shellRef.current.position.set(ball.x, BALL_R, ball.z);
-      shellRef.current.material.opacity = 0.2 + spdN * 0.4;
-      shellRef.current.material.color.setHSL(spd > 13 ? 0.83 : 0.53, 1, 0.68);
+      shellRef.current.material.opacity = 0.4 + spdN * 0.4;
     }
     if (lightRef.current) {
       lightRef.current.position.set(ball.x, BALL_R + 0.3, ball.z);
@@ -455,15 +490,13 @@ function Ball() {
       <BallTrail />
       <mesh ref={meshRef} castShadow>
         <sphereGeometry args={[BALL_R, 32, 32]} />
-        {/* High metalness, zero roughness for hyper-polished look */}
-        <meshStandardMaterial color="#E8E8FF" emissive="#8899FF" emissiveIntensity={0.5} metalness={1.0} roughness={0.0} envMapIntensity={3} />
+        <meshStandardMaterial color="#FFFFFF" emissive="#FFFFFF" emissiveIntensity={0.8} metalness={0.1} roughness={0.1} />
       </mesh>
       <mesh ref={shellRef}>
-        <sphereGeometry args={[BALL_R * 1.2, 32, 32]} />
-        {/* Fresnel rim fake */}
-        <meshStandardMaterial transparent opacity={0.3} blending={THREE.AdditiveBlending} depthWrite={false} emissive={UI.attract} emissiveIntensity={0.5} />
+        <sphereGeometry args={[BALL_R * 1.25, 32, 32]} />
+        <meshStandardMaterial transparent opacity={0.4} blending={THREE.AdditiveBlending} depthWrite={false} emissive="#FFFFFF" emissiveIntensity={0.8} color="#FFFFFF" />
       </mesh>
-      <pointLight ref={lightRef} color="#aabbff" intensity={2.0} distance={4} decay={2} />
+      <pointLight ref={lightRef} color="#ffffff" intensity={2.0} distance={4} decay={2} />
     </group>
   );
 }
@@ -477,6 +510,7 @@ const CI_BOT = new THREE.Color("#330033");
 function MagneticAura({ isP1 }) {
   const groupRef = useRef();
   const ringsRef = useRef([]);
+  const rangeRefs = useRef([]);
 
   useFrame(({ clock }) => {
     if (!groupRef.current) return;
@@ -501,6 +535,20 @@ function MagneticAura({ isP1 }) {
         r.material.opacity = (1 - rawPhase) * 0.7;
         r.material.color.copy(attract ? CA3 : CR3);
       });
+      
+      rangeRefs.current.forEach((r, i) => {
+        if (!r) return;
+        const rawPhase = (t * 0.8 + i * 0.5) % 1.0; 
+        const maxRange = 6.2; // 6.2 * 0.55 = 3.41 world units radius
+        const scale = rawPhase * maxRange;
+        r.scale.setScalar(Math.max(scale, 0.001));
+        
+        let alpha = (1 - rawPhase) * 0.35;
+        if (rawPhase < 0.1) alpha *= (rawPhase / 0.1); // fade in gently
+        
+        r.material.opacity = alpha;
+        r.material.color.copy(attract ? CA3 : CR3);
+      });
     } else {
       groupRef.current.visible = false;
     }
@@ -508,8 +556,14 @@ function MagneticAura({ isP1 }) {
 
   return (
     <group ref={groupRef} visible={false}>
+      {[0, 1].map(i => (
+        <mesh key={`range-${i}`} ref={el => rangeRefs.current[i] = el} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
+          <ringGeometry args={[POLE_R * 0.98, POLE_R * 1.0, 64]} />
+          <meshBasicMaterial transparent opacity={0} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} color="#FFFFFF" />
+        </mesh>
+      ))}
       {[0, 1, 2].map(i => (
-        <mesh key={i} ref={el => ringsRef.current[i] = el} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh key={`ring-${i}`} ref={el => ringsRef.current[i] = el} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[POLE_R * 0.8, POLE_R * 0.95, 32]} />
           <meshBasicMaterial transparent opacity={0} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} color="#FFFFFF" />
         </mesh>
@@ -1118,3 +1172,4 @@ export default function MagPhys3D() {
     </div>
   );
 }
+
