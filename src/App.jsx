@@ -536,32 +536,42 @@ function MagneticAura({ isP1 }) {
         r.material.color.copy(attract ? CA3 : CR3);
       });
       
-      rangeRefs.current.forEach((r, i) => {
-        if (!r) return;
-        const rawPhase = (t * 0.8 + i * 0.5) % 1.0; 
-        const maxRange = 6.2; // 6.2 * 0.55 = 3.41 world units radius
-        const scale = rawPhase * maxRange;
-        r.scale.setScalar(Math.max(scale, 0.001));
+      // Minimal, highly visible static range indicator boundary
+      const rangeRing = rangeRefs.current[0];
+      if (rangeRing) {
+        const effectiveRangeScale = 7.5; // Fixed radius for the reach indicator (approx 4.1 world units)
+        rangeRing.scale.setScalar(rangeRing.scale.x + (effectiveRangeScale - rangeRing.scale.x) * 0.3);
         
-        let alpha = (1 - rawPhase) * 0.35;
-        if (rawPhase < 0.1) alpha *= (rawPhase / 0.1); // fade in gently
+        // High visibility solid pulse, not a moving ripple
+        rangeRing.material.opacity = 0.7 + 0.3 * Math.sin(t * 8); 
         
-        r.material.opacity = alpha;
-        r.material.color.copy(attract ? CA3 : CR3);
-      });
+        // Boost color intensity slightly for heavy bloom
+        rangeRing.material.color.copy(attract ? CA3 : CR3).multiplyScalar(1.5);
+      }
     } else {
-      groupRef.current.visible = false;
+      const rangeRing = rangeRefs.current[0];
+      if (rangeRing) {
+        // Snap shrink when deactivated
+        rangeRing.scale.setScalar(rangeRing.scale.x + (0.001 - rangeRing.scale.x) * 0.4);
+        if (rangeRing.scale.x < 0.1) {
+          groupRef.current.visible = false;
+        }
+      } else {
+        groupRef.current.visible = false;
+      }
+      
+      // Hide inner rings immediately to show power-down state clearly
+      ringsRef.current.forEach(r => { if (r) r.material.opacity = 0; });
     }
   });
 
   return (
     <group ref={groupRef} visible={false}>
-      {[0, 1].map(i => (
-        <mesh key={`range-${i}`} ref={el => rangeRefs.current[i] = el} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
-          <ringGeometry args={[POLE_R * 0.98, POLE_R * 1.0, 64]} />
-          <meshBasicMaterial transparent opacity={0} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} color="#FFFFFF" />
-        </mesh>
-      ))}
+      <mesh ref={el => rangeRefs.current[0] = el} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
+        {/* Very thin, sharp ring for max visibility without clutter */}
+        <ringGeometry args={[POLE_R * 0.985, POLE_R * 1.0, 64]} />
+        <meshBasicMaterial transparent opacity={0} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} depthTest={false} color="#FFFFFF" />
+      </mesh>
       {[0, 1, 2].map(i => (
         <mesh key={`ring-${i}`} ref={el => ringsRef.current[i] = el} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[POLE_R * 0.8, POLE_R * 0.95, 32]} />
