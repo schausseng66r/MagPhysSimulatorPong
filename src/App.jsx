@@ -529,27 +529,39 @@ function getAsteriskGeo() {
 }
 
 function MagneticAura({ isP1 }) {
+  const groupRef = useRef();
   const meshRef = useRef();
 
   useFrame(() => {
-    if (!meshRef.current) return;
-    const pole = isP1 ? useStore.getState().p1 : useStore.getState().bot;
+    if (!groupRef.current || !meshRef.current) return;
+    const { p1, bot, ball } = useStore.getState();
+    const pole = isP1 ? p1 : bot;
     const active = pole.mode !== "NONE";
     const attract = pole.mode === "ATTRACT";
     
     if (active) {
-      meshRef.current.visible = true;
-      meshRef.current.position.set(pole.x, 0.05, pole.z);
+      groupRef.current.visible = true;
+      groupRef.current.position.set(pole.x, 0.05, pole.z);
       meshRef.current.material.color.set(attract ? UI.attract : UI.repel);
+      
+      const dist = Math.sqrt((ball.x - pole.x)**2 + (ball.z - pole.z)**2);
+      const react = clamp(1 - (dist / 5.0), 0, 1);
+      
+      meshRef.current.rotation.z += 0.002 + 0.015 * react;
+      const pulsing = 1.0 + 0.08 * Math.sin(Date.now() * 0.015) * react;
+      meshRef.current.scale.setScalar(pulsing);
+      meshRef.current.material.opacity = 0.12 + 0.25 * react;
     } else {
-      meshRef.current.visible = false;
+      groupRef.current.visible = false;
     }
   });
 
   return (
-    <mesh ref={meshRef} geometry={getAsteriskGeo()} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
-      <meshBasicMaterial transparent opacity={0.25} side={THREE.DoubleSide} depthWrite={false} color="#FFFFFF" />
-    </mesh>
+    <group ref={groupRef} visible={false}>
+      <mesh ref={meshRef} geometry={getAsteriskGeo()} rotation={[-Math.PI / 2, 0, 0]}>
+        <meshBasicMaterial transparent opacity={0.12} side={THREE.DoubleSide} depthWrite={false} color="#FFFFFF" />
+      </mesh>
+    </group>
   );
 }
 
@@ -741,15 +753,20 @@ function VectorField() {
     for (let i = 0; i < FIELD_COUNT; i++) {
       const wx = fieldX[i], wz = fieldZ[i];
       const pt = { x: wx, z: wz };
-      const fp = magForce(p1, pt, p1.mode);
-      const fb = magForce(bot, pt, bot.mode);
-      const fg = ghosts.reduce((a, g) => { const f = ghostF(g, pt); return { fx: a.fx + f.fx, fz: a.fz + f.fz }; }, { fx: 0, fz: 0 });
-      const fx = fp.fx + fb.fx + fg.fx;
-      const fz = fp.fz + fb.fz + fg.fz;
-      const mag = Math.sqrt(fx * fx + fz * fz);
+      let fx = 0, fz = 0, magA = 0, magR = 0;
+      
+      const addF = (mode, pf) => {
+        fx += pf.fx; fz += pf.fz;
+        const m = Math.sqrt(pf.fx*pf.fx + pf.fz*pf.fz);
+        if (mode === "ATTRACT") magA += m;
+        if (mode === "REPEL") magR += m;
+      };
 
-      const hA = p1.mode === "ATTRACT" || bot.mode === "ATTRACT" || ghosts.some(g => g.mode === "ATTRACT");
-      const hR = p1.mode === "REPEL"   || bot.mode === "REPEL"   || ghosts.some(g => g.mode === "REPEL");
+      addF(p1.mode, magForce(p1, pt, p1.mode));
+      addF(bot.mode, magForce(bot, pt, bot.mode));
+      for (const g of ghosts) addF(g.mode, ghostF(g, pt));
+
+      const mag = Math.sqrt(fx * fx + fz * fz);
 
       // Magnetic stretching: clamp limits scaling Z-axis based on field strength
       dummy.position.set(wx, 0.025, wz);
@@ -766,10 +783,13 @@ function VectorField() {
 
       // Fade out dynamically matching PRD intent (0.1 opacity for far arrows)
       const alpha = clamp(mag * 0.1, 0.03, 1.0);
-      if (hA && hR) fieldCol.setHSL(0.75, 1, 0.5);
-      else if (hA)  fieldCol.set(UI.attract);
-      else if (hR)  fieldCol.set(UI.repel);
-      else          fieldCol.setHSL(0.6, 0.4, 0.15);
+      const totalColMag = magA + magR;
+      
+      if (totalColMag > 0.001) {
+        fieldCol.set(UI.attract).lerp(new THREE.Color(UI.repel), magR / totalColMag);
+      } else {
+        fieldCol.setHSL(0.6, 0.4, 0.15);
+      }
       fieldCol.multiplyScalar(alpha * 2.5); // Black multiplying essentially controls additive opacity
       mesh.setColorAt(i, fieldCol);
 
@@ -783,10 +803,11 @@ function VectorField() {
       spike.setMatrixAt(i, dummySpk.matrix);
 
       const spikeAlpha = clamp(mag * 0.07, 0.02, 0.85);
-      if (hA && hR) spikeCol.setHSL(0.75, 1, 0.55);
-      else if (hA)  spikeCol.set(UI.attract);
-      else if (hR)  spikeCol.set(UI.repel);
-      else          spikeCol.setHSL(0.6, 0.4, 0.2);
+      if (totalColMag > 0.001) {
+        spikeCol.set(UI.attract).lerp(new THREE.Color(UI.repel), magR / totalColMag);
+      } else {
+        spikeCol.setHSL(0.6, 0.4, 0.2);
+      }
       spikeCol.multiplyScalar(spikeAlpha * 3.5);
       spike.setColorAt(i, spikeCol);
     }
