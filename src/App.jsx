@@ -582,8 +582,10 @@ function GhostPoles() {
 }
 
 // ─── Vector field ─────────────────────────────────────────────────────────────
-const dummy    = new THREE.Object3D();
-const fieldCol = new THREE.Color();
+const dummy     = new THREE.Object3D();
+const dummySpk  = new THREE.Object3D();
+const fieldCol  = new THREE.Color();
+const spikeCol  = new THREE.Color();
 
 function buildArrow() {
   // Built lying along +Z so it lies FLAT on the table and rotation.y around
@@ -610,16 +612,31 @@ function buildArrow() {
   return geo;
 }
 
+function buildSpike() {
+  // Thin vertical column, base at the table surface (y=0), tip at y=1 in
+  // local space -- scaled per-instance by field magnitude to read as a
+  // glowing intensity spike, layered on top of the flat directional arrows.
+  const geo = new THREE.ConeGeometry(0.045, 1, 5, 1, true);
+  geo.translate(0, 0.5, 0);
+  return geo;
+}
+
 function VectorField() {
-  const meshRef = useRef();
-  const geoRef  = useRef();
+  const meshRef  = useRef();
+  const spikeRef = useRef();
+  const geoRef   = useRef();
+  const spkGeoRef = useRef();
   if (!geoRef.current) geoRef.current = buildArrow();
+  if (!spkGeoRef.current) spkGeoRef.current = buildSpike();
 
   useFrame(() => {
-    const mesh = meshRef.current;
-    if (!mesh) return;
+    const mesh  = meshRef.current;
+    const spike = spikeRef.current;
+    if (!mesh || !spike) return;
     const { p1, bot, ghosts, phase } = useStore.getState();
     if (phase !== "PLAYING") return;
+
+    const t = Date.now() * 0.001;
 
     for (let i = 0; i < FIELD_COUNT; i++) {
       const wx = fieldX[i], wz = fieldZ[i];
@@ -631,15 +648,22 @@ function VectorField() {
       const fz = fp.fz + fb.fz + fg.fz;
       const mag = Math.sqrt(fx * fx + fz * fz);
 
+      const hA = p1.mode === "ATTRACT" || bot.mode === "ATTRACT" || ghosts.some(g => g.mode === "ATTRACT");
+      const hR = p1.mode === "REPEL"   || bot.mode === "REPEL"   || ghosts.some(g => g.mode === "REPEL");
+
+      // -- Flat directional arrow (on the ground) --
       dummy.position.set(wx, 0.025, wz);
-      if (mag < 0.04) { dummy.scale.setScalar(0.001); dummy.updateMatrix(); mesh.setMatrixAt(i, dummy.matrix); continue; }
+      if (mag < 0.04) {
+        dummy.scale.setScalar(0.001); dummy.updateMatrix(); mesh.setMatrixAt(i, dummy.matrix);
+        dummySpk.position.set(wx, 0, wz); dummySpk.scale.setScalar(0.001); dummySpk.updateMatrix();
+        spike.setMatrixAt(i, dummySpk.matrix);
+        continue;
+      }
       dummy.rotation.set(0, Math.atan2(fx, fz), 0);
       dummy.scale.set(1, 1, clamp(mag * 0.26, 0.15, 1.5));
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
 
-      const hA = p1.mode === "ATTRACT" || bot.mode === "ATTRACT" || ghosts.some(g => g.mode === "ATTRACT");
-      const hR = p1.mode === "REPEL"   || bot.mode === "REPEL"   || ghosts.some(g => g.mode === "REPEL");
       const alpha = clamp(mag * 0.07, 0.05, 0.8);
       if (hA && hR) fieldCol.setHSL(0.75, 1, 0.5);
       else if (hA)  fieldCol.set(UI.attract);
@@ -647,15 +671,39 @@ function VectorField() {
       else          fieldCol.setHSL(0.6, 0.4, 0.15);
       fieldCol.multiplyScalar(alpha * 2.2);
       mesh.setColorAt(i, fieldCol);
+
+      // -- Vertical intensity spike (the aura) --
+      const shimmer = 0.9 + 0.1 * Math.sin(t * 3 + wx * 1.7 + wz * 1.3);
+      const spikeH  = clamp(mag * 0.16, 0.05, 2.4) * shimmer;
+      dummySpk.position.set(wx, 0, wz);
+      dummySpk.rotation.set(0, 0, 0);
+      dummySpk.scale.set(1, spikeH, 1);
+      dummySpk.updateMatrix();
+      spike.setMatrixAt(i, dummySpk.matrix);
+
+      const spikeAlpha = clamp(mag * 0.05, 0.04, 0.55);
+      if (hA && hR) spikeCol.setHSL(0.75, 1, 0.55);
+      else if (hA)  spikeCol.set(UI.attract);
+      else if (hR)  spikeCol.set(UI.repel);
+      else          spikeCol.setHSL(0.6, 0.4, 0.2);
+      spikeCol.multiplyScalar(spikeAlpha * 2.6);
+      spike.setColorAt(i, spikeCol);
     }
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    spike.instanceMatrix.needsUpdate = true;
+    if (spike.instanceColor) spike.instanceColor.needsUpdate = true;
   });
 
   return (
-    <instancedMesh ref={meshRef} args={[geoRef.current, undefined, FIELD_COUNT]}>
-      <meshBasicMaterial vertexColors />
-    </instancedMesh>
+    <group>
+      <instancedMesh ref={meshRef} args={[geoRef.current, undefined, FIELD_COUNT]}>
+        <meshBasicMaterial vertexColors />
+      </instancedMesh>
+      <instancedMesh ref={spikeRef} args={[spkGeoRef.current, undefined, FIELD_COUNT]}>
+        <meshBasicMaterial vertexColors transparent opacity={0.85} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </instancedMesh>
+    </group>
   );
 }
 
