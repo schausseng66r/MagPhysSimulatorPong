@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Text, Billboard } from "@react-three/drei";
-import { EffectComposer, Bloom } from "@react-three/postprocessing";
+import { EffectComposer, Bloom, ChromaticAberration } from "@react-three/postprocessing";
 import { create } from "zustand";
 import * as THREE from "three";
 
@@ -25,21 +25,21 @@ const GHOST_MIN_DIST = 1.4;
 const GHOST_DRIFT    = 0.9;
 const GHOST_MIN      = 2.2;
 const GHOST_MAX      = 5.5;
-const TRAIL_LEN      = 28;
-const FIELD_COLS     = 28;
-const FIELD_ROWS     = 18;
+const TRAIL_LEN      = 20;
+
+// Increased density for "Vector Sea"
+const FIELD_COLS     = 60;
+const FIELD_ROWS     = 40;
 const FIELD_COUNT    = FIELD_COLS * FIELD_ROWS;
 
 const C_ATTRACT = "#00FFFF";
 const C_REPEL   = "#FF00FF";
 
-// Casino Arcade -- UI palette
-// Deep black background, saturated neon cyan/magenta accents, strong glow.
-// Same token names as before so every component below just lights back up.
+// Cyber-Electric Neon-Noir Palette
 const UI = {
-  void:     "#06080C",
-  depth1:   "#0C1018",
-  depth2:   "#121826",
+  void:     "#020406",
+  depth1:   "#080E14",
+  depth2:   "#101824",
   silt:     "rgba(0,255,255,0.16)",
   siltSoft: "rgba(0,255,255,0.08)",
   haze:     "rgba(255,255,255,0.55)",
@@ -272,11 +272,6 @@ function PhysicsController({ keysRef, s1Ref, s2Ref, modeRef }) {
 }
 
 // ─── Camera rig ───────────────────────────────────────────────────────────────
-// VS BOT: angled third-person, positioned behind/above the player's own pole,
-//         looking down the table toward the opponent goal -- tracks pole Z subtly.
-// 2P:     neutral angled broadcast position, symmetric so neither physical
-//         player's view is privileged over the other.
-// Both keep the full table (both goals) inside frame -- no hard FPS occlusion.
 const _camPos    = new THREE.Vector3();
 const _camLook   = new THREE.Vector3();
 const _curPos    = new THREE.Vector3(0, 13, 7);
@@ -292,19 +287,16 @@ function CameraRig({ modeRef }) {
 
     let fov;
     if (mode === "BOT") {
-      // Over P1's shoulder -- behind own pole, angled across the full table
       const followZ = clamp(p1.z * 0.42, -1.7, 1.7);
       _camPos.set(mobile ? -11.2 : -9.6, mobile ? 8.6 : 6.2, followZ);
       _camLook.set(1.6, -0.1, followZ * 0.22);
-      fov = mobile ? 74 : 60;
+      fov = mobile ? 85 : 75; // Increased for speed effect
     } else {
-      // 2P -- symmetric broadcast angle off the long edge
       _camPos.set(0, mobile ? 10.2 : 8.4, mobile ? 6.4 : 5.1);
       _camLook.set(0, -0.1, 0);
-      fov = mobile ? 70 : 56;
+      fov = mobile ? 80 : 70;
     }
 
-    // Smooth settle into position (also gives a nice establishing sweep on load)
     _curPos.lerp(_camPos, 0.055);
     _curLook.lerp(_camLook, 0.07);
 
@@ -336,14 +328,14 @@ function Arena() {
       {/* Table */}
       <mesh receiveShadow position={[0, -0.12, 0]}>
         <boxGeometry args={[ARENA_W, 0.22, ARENA_H]} />
-        <meshStandardMaterial color="#080E1A" metalness={0.85} roughness={0.18} />
+        <meshStandardMaterial color="#020406" metalness={0.9} roughness={0.08} />
       </mesh>
 
       {/* Top / bottom walls */}
       {[1, -1].map(s => (
         <mesh key={s} position={[0, 0.2, s * (hH + 0.09)]}>
           <boxGeometry args={[ARENA_W + 0.36, 0.4, 0.18]} />
-          <meshStandardMaterial color="#1A2535" metalness={0.6} roughness={0.4} />
+          <meshStandardMaterial color="#0A1522" metalness={0.7} roughness={0.3} />
         </mesh>
       ))}
 
@@ -351,7 +343,7 @@ function Arena() {
       {[1, -1].map(s => (
         <mesh key={s} position={[-(hW + 0.09), 0.2, s * (hH / 2 + gH / 2)]}>
           <boxGeometry args={[0.18, 0.4, seg]} />
-          <meshStandardMaterial color="#1A2535" metalness={0.6} roughness={0.4} emissive={UI.attract} emissiveIntensity={0.12} />
+          <meshStandardMaterial color="#0A1522" metalness={0.7} roughness={0.3} emissive={UI.attract} emissiveIntensity={0.15} />
         </mesh>
       ))}
 
@@ -359,14 +351,14 @@ function Arena() {
       {[1, -1].map(s => (
         <mesh key={s} position={[(hW + 0.09), 0.2, s * (hH / 2 + gH / 2)]}>
           <boxGeometry args={[0.18, 0.4, seg]} />
-          <meshStandardMaterial color="#1A2535" metalness={0.6} roughness={0.4} emissive={UI.repel} emissiveIntensity={0.12} />
+          <meshStandardMaterial color="#0A1522" metalness={0.7} roughness={0.3} emissive={UI.repel} emissiveIntensity={0.15} />
         </mesh>
       ))}
 
       {/* Center line */}
       <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[0.03, ARENA_H]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={0.07} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0.05} />
       </mesh>
 
       {/* Goal lights */}
@@ -376,36 +368,65 @@ function Arena() {
   );
 }
 
-// ─── Ball ─────────────────────────────────────────────────────────────────────
+// ─── Ball & Breadcrumb Trail ──────────────────────────────────────────────────
 const _trailColor = new THREE.Color();
 
-function buildTail() {
-  // Wide near the ball, tapering to a point -- built along +Z (same axis
-  // convention as the arrows) so a single rotation.y aims it. Vertex colors
-  // are baked from white (near ball) fading to black (tail tip); with
-  // additive blending on a near-black background that reads as a smooth
-  // alpha fade without needing UV/alphaMap, which can't be verified here.
-  const len = 1;
-  const geo = new THREE.CylinderGeometry(0.001, BALL_R * 1.05, len, 10, 1, true);
-  geo.rotateX(Math.PI / 2);
-  geo.translate(0, 0, len / 2);
-  const posAttr = geo.attributes.position;
-  const colors = new Float32Array(posAttr.count * 3);
-  for (let i = 0; i < posAttr.count; i++) {
-    const t = clamp(posAttr.getZ(i) / len, 0, 1);
-    const b = 1 - t;
-    colors[i * 3] = b; colors[i * 3 + 1] = b; colors[i * 3 + 2] = b;
-  }
-  geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  return geo;
+function BallTrail() {
+  const meshRef = useRef();
+  const trailRef = useRef(Array.from({ length: 20 }, () => ({ x: 0, z: 0, spd: 0 })));
+  const dummyPlane = new THREE.Object3D();
+  
+  useFrame(() => {
+    const { ball, phase } = useStore.getState();
+    const mesh = meshRef.current;
+    if (!mesh || phase !== "PLAYING") return;
+    
+    const tr = trailRef.current;
+    for (let i = tr.length - 1; i > 0; i--) {
+      tr[i].x = tr[i - 1].x;
+      tr[i].z = tr[i - 1].z;
+      tr[i].spd = tr[i - 1].spd;
+    }
+    const spd = Math.sqrt(ball.vx**2 + ball.vz**2);
+    tr[0].x = ball.x;
+    tr[0].z = ball.z;
+    tr[0].spd = spd;
+    
+    for (let i = 0; i < 20; i++) {
+      const p = tr[i];
+      dummyPlane.position.set(p.x, BALL_R, p.z);
+      const scale = Math.max(0, 1 - i / 20);
+      if (i > 0) {
+        dummyPlane.rotation.set(-Math.PI/2, 0, Math.atan2(tr[i-1].x - p.x, tr[i-1].z - p.z));
+      } else {
+        dummyPlane.rotation.set(-Math.PI/2, 0, Math.atan2(ball.vx, ball.vz));
+      }
+      const sclX = clamp(p.spd * 0.08, 0.3, 1.2) * scale;
+      const sclY = clamp(p.spd * 0.08, 0.6, 2.5) * scale;
+      dummyPlane.scale.set(sclX, sclY, 1);
+      dummyPlane.updateMatrix();
+      mesh.setMatrixAt(i, dummyPlane.matrix);
+      
+      _trailColor.setHSL(p.spd > 13 ? 0.83 : 0.53, 1, 0.68);
+      _trailColor.multiplyScalar(scale * 1.5);
+      mesh.setColorAt(i, _trailColor);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh ref={meshRef} args={[null, null, 20]}>
+      <planeGeometry args={[0.3, 1]} />
+      <meshBasicMaterial vertexColors transparent opacity={0.9} depthWrite={false} blending={THREE.AdditiveBlending} />
+    </instancedMesh>
+  );
 }
 
 function Ball() {
   const meshRef  = useRef();
+  const shellRef = useRef();
   const lightRef = useRef();
-  const tailRef  = useRef();
-  const tailGeoRef = useRef();
-  if (!tailGeoRef.current) tailGeoRef.current = buildTail();
 
   useFrame(() => {
     const { ball, phase } = useStore.getState();
@@ -416,58 +437,96 @@ function Ball() {
 
     if (meshRef.current) {
       meshRef.current.position.set(ball.x, BALL_R, ball.z);
-      meshRef.current.material.emissiveIntensity = 0.3 + spdN * 1.4;
+      meshRef.current.material.emissiveIntensity = 0.5 + spdN * 1.5;
+    }
+    if (shellRef.current) {
+      shellRef.current.position.set(ball.x, BALL_R, ball.z);
+      shellRef.current.material.opacity = 0.2 + spdN * 0.4;
+      shellRef.current.material.color.setHSL(spd > 13 ? 0.83 : 0.53, 1, 0.68);
     }
     if (lightRef.current) {
       lightRef.current.position.set(ball.x, BALL_R + 0.3, ball.z);
-      lightRef.current.intensity = 1.5 + spdN * 4;
-    }
-
-    if (tailRef.current) {
-      tailRef.current.position.set(ball.x, BALL_R, ball.z);
-      // Tail points opposite the direction of travel -- same world-direction
-      // mapping convention used by the vector field arrows, just reversed.
-      tailRef.current.rotation.set(0, Math.atan2(-ball.vx, -ball.vz), 0);
-      tailRef.current.scale.set(1, 1, clamp(spd * 0.09, 0.22, 2.6));
-      _trailColor.setHSL(spd > 13 ? 0.83 : 0.53, 1, 0.68);
-      tailRef.current.material.color.copy(_trailColor);
-      tailRef.current.material.opacity = 0.5 + spdN * 0.4;
+      lightRef.current.intensity = 2.0 + spdN * 4;
     }
   });
 
   return (
     <group>
-      <mesh ref={tailRef} geometry={tailGeoRef.current}>
-        <meshBasicMaterial vertexColors transparent opacity={0.6} depthWrite={false} blending={THREE.AdditiveBlending} />
-      </mesh>
+      <BallTrail />
       <mesh ref={meshRef} castShadow>
         <sphereGeometry args={[BALL_R, 32, 32]} />
-        <meshStandardMaterial color="#E8E8FF" emissive="#8899FF" emissiveIntensity={0.3} metalness={0.95} roughness={0.05} envMapIntensity={2} />
+        {/* High metalness, zero roughness for hyper-polished look */}
+        <meshStandardMaterial color="#E8E8FF" emissive="#8899FF" emissiveIntensity={0.5} metalness={1.0} roughness={0.0} envMapIntensity={3} />
       </mesh>
-      <pointLight ref={lightRef} color="#aabbff" intensity={1.5} distance={3} decay={2} />
+      <mesh ref={shellRef}>
+        <sphereGeometry args={[BALL_R * 1.2, 32, 32]} />
+        {/* Fresnel rim fake */}
+        <meshStandardMaterial transparent opacity={0.3} blending={THREE.AdditiveBlending} depthWrite={false} emissive={UI.attract} emissiveIntensity={0.5} />
+      </mesh>
+      <pointLight ref={lightRef} color="#aabbff" intensity={2.0} distance={4} decay={2} />
     </group>
   );
 }
 
-// ─── Pole ─────────────────────────────────────────────────────────────────────
+// ─── Pole & Magnetic Aura ─────────────────────────────────────────────────────
 const CA3 = new THREE.Color(UI.attract);
 const CR3 = new THREE.Color(UI.repel);
 const CI_P1  = new THREE.Color("#003344");
 const CI_BOT = new THREE.Color("#330033");
 
+function MagneticAura({ isP1 }) {
+  const groupRef = useRef();
+  const ringsRef = useRef([]);
+
+  useFrame(({ clock }) => {
+    if (!groupRef.current) return;
+    const t = clock.elapsedTime;
+    const pole = isP1 ? useStore.getState().p1 : useStore.getState().bot;
+    const active = pole.mode !== "NONE";
+    const attract = pole.mode === "ATTRACT";
+    
+    if (active) {
+      groupRef.current.visible = true;
+      const jitterX = Math.sin(t * 40) * 0.04;
+      const jitterZ = Math.cos(t * 35) * 0.04;
+      groupRef.current.position.set(pole.x + jitterX, 0.02, pole.z + jitterZ);
+      
+      const speed = 7;
+      ringsRef.current.forEach((r, i) => {
+        if (!r) return;
+        // Elastic outward expansion cycle
+        const rawPhase = (t * speed * 0.2 + i * 0.33) % 1.0; 
+        const scale = 0.5 + Math.pow(rawPhase, 0.4) * 2.8;
+        r.scale.setScalar(scale);
+        r.material.opacity = (1 - rawPhase) * 0.7;
+        r.material.color.copy(attract ? CA3 : CR3);
+      });
+    } else {
+      groupRef.current.visible = false;
+    }
+  });
+
+  return (
+    <group ref={groupRef} visible={false}>
+      {[0, 1, 2].map(i => (
+        <mesh key={i} ref={el => ringsRef.current[i] = el} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[POLE_R * 0.8, POLE_R * 0.95, 32]} />
+          <meshBasicMaterial transparent opacity={0} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} color="#FFFFFF" />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 function Pole({ side, label }) {
   const meshRef    = useRef();
   const lightRef   = useRef();
-  const ringRef    = useRef();
   const symbolRef  = useRef();
   const labelRef   = useRef();
   const emRef      = useRef(new THREE.Color());
   const isP1       = side === "p1";
   const px         = isP1 ? -5.5 : 5.5;
 
-  // Low-frequency reactive subscription -- only re-renders on mode change
-  // (press/release), drives the text glyph/color/opacity through normal
-  // React props so drei/troika handles the update safely.
   const mode    = useStore(s => (isP1 ? s.p1.mode : s.bot.mode));
   const active  = mode !== "NONE";
   const attract = mode === "ATTRACT";
@@ -487,15 +546,8 @@ function Pole({ side, label }) {
     if (lightRef.current) {
       lightRef.current.position.set(pole.x, 1.0, pole.z);
       lightRef.current.color.copy(activeF ? (attractF ? CA3 : CR3) : new THREE.Color(0, 0, 0));
-      lightRef.current.intensity = activeF ? 9 : 0;
+      lightRef.current.intensity = activeF ? 12 : 0;
     }
-    if (ringRef.current) {
-      const pulse = activeF ? 1 + 0.3 * Math.sin(Date.now() * 0.006) : 0;
-      ringRef.current.scale.setScalar(Math.max(pulse, 0.001));
-      ringRef.current.material.opacity = activeF ? 0.32 : 0;
-      ringRef.current.material.color.copy(attractF ? CA3 : CR3);
-    }
-    // Position-only updates for floating text -- standard Object3D transform, safe every frame
     if (symbolRef.current) symbolRef.current.position.set(pole.x, POLE_R + 0.42, pole.z);
     if (labelRef.current)  labelRef.current.position.set(pole.x, POLE_R + 0.18, pole.z);
   });
@@ -510,20 +562,16 @@ function Pole({ side, label }) {
           emissiveIntensity={0.15} metalness={0.9} roughness={0.1}
         />
       </mesh>
-      <mesh ref={ringRef} position={[px, POLE_R + 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[POLE_R * 0.6, POLE_R * 2, 32]} />
-        <meshBasicMaterial transparent opacity={0} color="#00FFFF" side={THREE.DoubleSide} />
-      </mesh>
-      <pointLight ref={lightRef} intensity={0} distance={5} decay={2} />
+      
+      <MagneticAura isP1={isP1} />
+      
+      <pointLight ref={lightRef} intensity={0} distance={6} decay={2} />
 
-      {/* Floating +/- glyph, billboarded so it reads from any camera angle */}
       <Billboard ref={symbolRef} position={[px, POLE_R + 0.42, 0]}>
         <Text fontSize={0.34} anchorX="center" anchorY="middle" color={symColor} fillOpacity={active ? 1 : 0}>
           {attract ? "\u2212" : "+"}
         </Text>
       </Billboard>
-
-      {/* Floating label, mirrors the 2D "P1"/"BOT" label under the symbol */}
       <Billboard ref={labelRef} position={[px, POLE_R + 0.18, 0]}>
         <Text fontSize={0.13} anchorX="center" anchorY="middle" color="rgba(255,255,255,0.6)">
           {label}
@@ -562,7 +610,7 @@ function GhostPoles() {
           c.material.opacity = 0.25 + pulse * 0.35;
         }
       });
-      if (lr) { lr.position.set(g.x, 0.5, g.z); lr.color.copy(col); lr.intensity = 0.5 + pulse; }
+      if (lr) { lr.position.set(g.x, 0.5, g.z); lr.color.copy(col); lr.intensity = 0.8 + pulse * 1.5; }
     });
   });
 
@@ -585,24 +633,18 @@ function GhostPoles() {
         </group>
       ))}
       {Array.from({ length: count }).map((_, i) => (
-        <pointLight key={i} ref={el => lights.current[i] = el} intensity={0} distance={3} decay={2} />
+        <pointLight key={i} ref={el => lights.current[i] = el} intensity={0} distance={4} decay={2} />
       ))}
     </group>
   );
 }
 
-// ─── Vector field ─────────────────────────────────────────────────────────────
+// ─── Vector field (High Density Sea) ─────────────────────────────────────────
 const dummy     = new THREE.Object3D();
 const dummySpk  = new THREE.Object3D();
 const fieldCol  = new THREE.Color();
 const spikeCol  = new THREE.Color();
 
-// Merges indexed BufferGeometries correctly -- concatenates position/normal
-// arrays AND offsets+concatenates each geometry's own index buffer. Reading
-// only the raw position array (as the previous version did) silently drops
-// the index, which corrupts the triangle list since CylinderGeometry/
-// ConeGeometry store SHARED vertices referenced by an index list, not a
-// flat per-triangle sequence. That was why the arrows never rendered.
 function mergeIndexed(geometries) {
   const positions = [], normals = [], indices = [];
   let vOffset = 0;
@@ -628,23 +670,18 @@ function mergeIndexed(geometries) {
 }
 
 function buildArrow() {
-  // Built lying along +Z so it lies FLAT on the table and rotation.y around
-  // the vertical axis actually points it toward the force direction.
-  const shaftLen = 0.3, headLen = 0.15;
-  const shaft = new THREE.CylinderGeometry(0.022, 0.022, shaftLen, 6);
+  const shaftLen = 0.28, headLen = 0.12;
+  const shaft = new THREE.CylinderGeometry(0.012, 0.012, shaftLen, 5);
   shaft.rotateX(Math.PI / 2);
   shaft.translate(0, 0, shaftLen / 2);
-  const head = new THREE.ConeGeometry(0.062, headLen, 6);
+  const head = new THREE.ConeGeometry(0.04, headLen, 5);
   head.rotateX(Math.PI / 2);
   head.translate(0, 0, shaftLen + headLen / 2);
   return mergeIndexed([shaft, head]);
 }
 
 function buildSpike() {
-  // Thin vertical column, base at the table surface (y=0), tip at y=1 in
-  // local space -- scaled per-instance by field magnitude to read as a
-  // glowing intensity spike, layered on top of the flat directional arrows.
-  const geo = new THREE.ConeGeometry(0.045, 1, 5, 1, true);
+  const geo = new THREE.ConeGeometry(0.03, 1, 4, 1, true);
   geo.translate(0, 0.5, 0);
   return geo;
 }
@@ -679,42 +716,43 @@ function VectorField() {
       const hA = p1.mode === "ATTRACT" || bot.mode === "ATTRACT" || ghosts.some(g => g.mode === "ATTRACT");
       const hR = p1.mode === "REPEL"   || bot.mode === "REPEL"   || ghosts.some(g => g.mode === "REPEL");
 
-      // -- Flat directional arrow (on the ground) --
+      // Magnetic stretching: clamp limits scaling Z-axis based on field strength
       dummy.position.set(wx, 0.025, wz);
-      if (mag < 0.04) {
+      if (mag < 0.08) {
         dummy.scale.setScalar(0.001); dummy.updateMatrix(); mesh.setMatrixAt(i, dummy.matrix);
         dummySpk.position.set(wx, 0, wz); dummySpk.scale.setScalar(0.001); dummySpk.updateMatrix();
         spike.setMatrixAt(i, dummySpk.matrix);
         continue;
       }
       dummy.rotation.set(0, Math.atan2(fx, fz), 0);
-      dummy.scale.set(1, 1, clamp(mag * 0.24, 0.14, 3.0));
+      dummy.scale.set(1, 1, clamp(mag * 0.45, 0.15, 3.8));
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
 
-      const alpha = clamp(mag * 0.08, 0.06, 1.0);
+      // Fade out dynamically matching PRD intent (0.1 opacity for far arrows)
+      const alpha = clamp(mag * 0.1, 0.03, 1.0);
       if (hA && hR) fieldCol.setHSL(0.75, 1, 0.5);
       else if (hA)  fieldCol.set(UI.attract);
       else if (hR)  fieldCol.set(UI.repel);
       else          fieldCol.setHSL(0.6, 0.4, 0.15);
-      fieldCol.multiplyScalar(alpha * 2.8);
+      fieldCol.multiplyScalar(alpha * 2.5); // Black multiplying essentially controls additive opacity
       mesh.setColorAt(i, fieldCol);
 
-      // -- Vertical intensity spike (the aura) --
+      // Vertical intensity spike
       const shimmer = 0.9 + 0.1 * Math.sin(t * 3 + wx * 1.7 + wz * 1.3);
-      const spikeH  = clamp(mag * 0.2, 0.06, 3.2) * shimmer;
+      const spikeH  = clamp(mag * 0.35, 0.06, 3.8) * shimmer;
       dummySpk.position.set(wx, 0, wz);
       dummySpk.rotation.set(0, 0, 0);
       dummySpk.scale.set(1, spikeH, 1);
       dummySpk.updateMatrix();
       spike.setMatrixAt(i, dummySpk.matrix);
 
-      const spikeAlpha = clamp(mag * 0.06, 0.05, 0.75);
+      const spikeAlpha = clamp(mag * 0.07, 0.02, 0.85);
       if (hA && hR) spikeCol.setHSL(0.75, 1, 0.55);
       else if (hA)  spikeCol.set(UI.attract);
       else if (hR)  spikeCol.set(UI.repel);
       else          spikeCol.setHSL(0.6, 0.4, 0.2);
-      spikeCol.multiplyScalar(spikeAlpha * 3.2);
+      spikeCol.multiplyScalar(spikeAlpha * 3.5);
       spike.setColorAt(i, spikeCol);
     }
     mesh.instanceMatrix.needsUpdate = true;
@@ -771,9 +809,11 @@ function HUD() {
       <div style={{
         display:"flex", justifyContent:"space-between", alignItems:"center",
         padding:"7px 14px",
-        background:`linear-gradient(180deg, ${UI.depth1}E8 0%, ${UI.void}D0 100%)`,
+        background:`linear-gradient(180deg, ${UI.depth1}D0 0%, ${UI.void}B0 100%)`,
         borderBottom:`1px solid ${UI.silt}`,
-        boxShadow:`inset 0 -1px 0 rgba(0,0,0,0.4)`,
+        border:`1px solid rgba(0, 255, 255, 0.15)`,
+        boxShadow:`inset 0 -1px 0 rgba(0,0,0,0.4), 0 0 15px rgba(0,255,255,0.05)`,
+        backdropFilter:`blur(10px)`,
         position:"relative",
       }}>
         <div style={{ display:"flex", flexDirection:"column", gap:3, minWidth:78 }}>
@@ -876,7 +916,7 @@ function Controls({ keysRef, s1Ref, s2Ref }) {
       position:"fixed", bottom:0, left:0, right:0,
       background:`linear-gradient(180deg, ${UI.depth1}E8 0%, ${UI.void}F2 100%)`,
       backdropFilter:"blur(10px)",
-      borderTop:`1px solid ${UI.silt}`,
+      borderTop:`1px solid rgba(0, 255, 255, 0.15)`,
       boxShadow:"inset 0 1px 0 rgba(255,255,255,0.02)",
       padding:"7px 11px 11px", display:"flex",
       flexDirection: gameMode==="2P" ? "row" : "column",
@@ -912,6 +952,7 @@ function MenuOverlay() {
       position:"fixed", inset:0, zIndex:30,
       display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
       background: UI.void,
+      backdropFilter:"blur(10px)",
       fontFamily:"'Courier New',monospace",
     }}>
       <div style={{ color:UI.ghost, fontSize:9, letterSpacing:"0.45em", marginBottom:7 }}>MAGNETIC ARCADE</div>
@@ -919,7 +960,7 @@ function MenuOverlay() {
         color:UI.bone, fontSize:30, fontWeight:"bold", letterSpacing:"0.3em", marginBottom:5,
         animation:"titlePulse 4s ease-in-out infinite",
       }}>MAG&middot;PHYS</div>
-      <div style={{ color:UI.hazeDim, fontSize:9, letterSpacing:"0.3em", marginBottom:30 }}>3D SIMULATOR</div>
+      <div style={{ color:UI.hazeDim, fontSize:9, letterSpacing:"0.3em", marginBottom:30 }}>KINETIC OVERHAUL</div>
 
       <div style={{ display:"flex", gap:14, marginBottom:24 }}>
         <SwitchButton label="VS BOT"   color={UI.attract} onPress={()=>{}} onRelease={()=>startGame("BOT")} />
@@ -949,6 +990,7 @@ function GameOverOverlay() {
       display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
       background: UI.void,
       boxShadow:`inset 0 0 220px ${wc}38`,
+      backdropFilter:"blur(10px)",
       fontFamily:"'Courier New',monospace",
     }}>
       <div style={{ color:UI.ghost, fontSize:9, letterSpacing:"0.35em", marginBottom:16 }}>MATCH COMPLETE</div>
@@ -967,6 +1009,27 @@ function GameOverOverlay() {
         <SwitchButton label="MENU"    color={UI.hazeDim} onPress={()=>{}} onRelease={()=>setPhase("MENU")} />
       </div>
     </div>
+  );
+}
+
+// ─── Post Processing ────────────────────────────────────────────────────────
+function PostProcess() {
+  const chrRef = useRef();
+  
+  useFrame(() => {
+    const { cameraShake } = useStore.getState();
+    if (chrRef.current) {
+      const amt = 0.007 * cameraShake;
+      chrRef.current.offset.x = amt;
+      chrRef.current.offset.y = amt;
+    }
+  });
+
+  return (
+    <EffectComposer disableNormalPass>
+      <Bloom intensity={2.5} luminanceThreshold={0.5} luminanceSmoothing={0.9} mipmapBlur />
+      <ChromaticAberration ref={chrRef} offset={[0, 0]} radialModulation={false} />
+    </EffectComposer>
   );
 }
 
@@ -989,9 +1052,7 @@ function Scene({ keysRef, s1Ref, s2Ref, modeRef }) {
         <GhostPoles />
         <VectorField />
       </>}
-      <EffectComposer>
-        <Bloom intensity={1.6} luminanceThreshold={0.24} luminanceSmoothing={0.8} mipmapBlur />
-      </EffectComposer>
+      <PostProcess />
     </>
   );
 }
@@ -1031,10 +1092,15 @@ export default function MagPhys3D() {
       {phase === "MENU"     && <MenuOverlay />}
       {phase === "GAMEOVER" && <GameOverOverlay />}
 
-      {/* Light focus vignette -- subtle edge darkening, arcade-cabinet framing only */}
+      {/* Retro-futuristic textures and vignettes */}
       <div style={{
         position:"fixed", inset:0, zIndex:90, pointerEvents:"none",
-        background:"radial-gradient(ellipse at 50% 50%, transparent 58%, rgba(0,0,0,0.32) 100%)",
+        background:"radial-gradient(ellipse at 50% 50%, transparent 58%, rgba(0,0,0,0.45) 100%)",
+      }} />
+      <div style={{
+        position:"fixed", inset:0, zIndex:95, pointerEvents:"none",
+        background: "repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0, 0, 0, 0.08) 1px, rgba(0, 0, 0, 0.08) 2px)",
+        backgroundSize: "100% 2px",
       }} />
 
       <style>{`
