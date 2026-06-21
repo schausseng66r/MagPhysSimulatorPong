@@ -33,22 +33,21 @@ const FIELD_COUNT    = FIELD_COLS * FIELD_ROWS;
 const C_ATTRACT = "#00FFFF";
 const C_REPEL   = "#FF00FF";
 
-// Submerged Analog Minimalism -- UI palette
-// Lo-fi, low-contrast, monochrome. Heavy vignette, deep grain, murky atmosphere.
-// Scene materials (poles/ball/field) keep faint hue separation for gameplay
-// readability; all UI chrome (HUD/menu/buttons) is fully desaturated.
+// Casino Arcade -- UI palette
+// Deep black background, saturated neon cyan/magenta accents, strong glow.
+// Same token names as before so every component below just lights back up.
 const UI = {
-  void:     "#0A0C0D",
-  depth1:   "#13171A",
-  depth2:   "#1A1F22",
-  silt:     "rgba(180,190,188,0.10)",
-  siltSoft: "rgba(180,190,188,0.05)",
-  haze:     "rgba(195,202,200,0.42)",
-  hazeDim:  "rgba(195,202,200,0.22)",
-  ghost:    "rgba(195,202,200,0.10)",
-  bone:     "#C7CDC9",
-  attract:  "#9FB0AC",
-  repel:    "#B0A29B",
+  void:     "#06080C",
+  depth1:   "#0C1018",
+  depth2:   "#121826",
+  silt:     "rgba(0,255,255,0.16)",
+  siltSoft: "rgba(0,255,255,0.08)",
+  haze:     "rgba(255,255,255,0.55)",
+  hazeDim:  "rgba(255,255,255,0.30)",
+  ghost:    "rgba(255,255,255,0.16)",
+  bone:     "#F0F4FF",
+  attract:  "#00FFFF",
+  repel:    "#FF00FF",
 };
 
 // ─── Math helpers ─────────────────────────────────────────────────────────────
@@ -352,7 +351,7 @@ function Arena() {
       {[1, -1].map(s => (
         <mesh key={s} position={[-(hW + 0.09), 0.2, s * (hH / 2 + gH / 2)]}>
           <boxGeometry args={[0.18, 0.4, seg]} />
-          <meshStandardMaterial color="#1A2535" metalness={0.6} roughness={0.4} emissive={UI.attract} emissiveIntensity={0.04} />
+          <meshStandardMaterial color="#1A2535" metalness={0.6} roughness={0.4} emissive={UI.attract} emissiveIntensity={0.12} />
         </mesh>
       ))}
 
@@ -360,7 +359,7 @@ function Arena() {
       {[1, -1].map(s => (
         <mesh key={s} position={[(hW + 0.09), 0.2, s * (hH / 2 + gH / 2)]}>
           <boxGeometry args={[0.18, 0.4, seg]} />
-          <meshStandardMaterial color="#1A2535" metalness={0.6} roughness={0.4} emissive={UI.repel} emissiveIntensity={0.04} />
+          <meshStandardMaterial color="#1A2535" metalness={0.6} roughness={0.4} emissive={UI.repel} emissiveIntensity={0.12} />
         </mesh>
       ))}
 
@@ -371,8 +370,8 @@ function Arena() {
       </mesh>
 
       {/* Goal lights */}
-      <pointLight position={[-hW - 0.5, 0.5, 0]} color={UI.attract} intensity={1.4 + goalFlash * 4} distance={4} decay={2} />
-      <pointLight position={[ hW + 0.5, 0.5, 0]} color={UI.repel} intensity={1.4 + goalFlash * 4} distance={4} decay={2} />
+      <pointLight position={[-hW - 0.5, 0.5, 0]} color={UI.attract} intensity={2.5 + goalFlash * 7} distance={4.5} decay={2} />
+      <pointLight position={[ hW + 0.5, 0.5, 0]} color={UI.repel} intensity={2.5 + goalFlash * 7} distance={4.5} decay={2} />
     </group>
   );
 }
@@ -396,11 +395,11 @@ function Ball() {
 
     if (meshRef.current) {
       meshRef.current.position.set(ball.x, BALL_R, ball.z);
-      meshRef.current.material.emissiveIntensity = 0.22 + spdN * 0.7;
+      meshRef.current.material.emissiveIntensity = 0.3 + spdN * 1.4;
     }
     if (lightRef.current) {
       lightRef.current.position.set(ball.x, BALL_R + 0.3, ball.z);
-      lightRef.current.intensity = 0.9 + spdN * 1.8;
+      lightRef.current.intensity = 1.5 + spdN * 4;
     }
 
     // Trail
@@ -417,7 +416,7 @@ function Ball() {
       m.visible = true;
       m.position.set(h.x, 0.06, h.z);
       m.scale.setScalar(BALL_R * (0.2 + 0.8 * age));
-      _trailColor.setHSL(h.s > 13 ? 0.5 : 0.45, 0.08, 0.62);
+      _trailColor.setHSL(h.s > 13 ? 0.83 : 0.53, 1, 0.65);
       m.material.color.copy(_trailColor);
       m.material.opacity = age * 0.5;
     });
@@ -443,8 +442,8 @@ function Ball() {
 // ─── Pole ─────────────────────────────────────────────────────────────────────
 const CA3 = new THREE.Color(UI.attract);
 const CR3 = new THREE.Color(UI.repel);
-const CI_P1  = new THREE.Color("#1A2624");
-const CI_BOT = new THREE.Color("#26201C");
+const CI_P1  = new THREE.Color("#003344");
+const CI_BOT = new THREE.Color("#330033");
 
 function Pole({ side }) {
   const meshRef  = useRef();
@@ -462,12 +461,12 @@ function Pole({ side }) {
     if (meshRef.current) {
       meshRef.current.position.set(pole.x, POLE_R * 0.5, pole.z);
       meshRef.current.material.emissive.copy(emRef.current);
-      meshRef.current.material.emissiveIntensity = active ? 1.1 : 0.1;
+      meshRef.current.material.emissiveIntensity = active ? 2.8 : 0.12;
     }
     if (lightRef.current) {
       lightRef.current.position.set(pole.x, 1.0, pole.z);
       lightRef.current.color.copy(active ? (attract ? CA3 : CR3) : new THREE.Color(0, 0, 0));
-      lightRef.current.intensity = active ? 3.2 : 0;
+      lightRef.current.intensity = active ? 9 : 0;
     }
     if (ringRef.current) {
       const pulse = active ? 1 + 0.3 * Math.sin(Date.now() * 0.006) : 0;
@@ -482,9 +481,9 @@ function Pole({ side }) {
       <mesh ref={meshRef} castShadow position={[isP1 ? -5.5 : 5.5, POLE_R * 0.5, 0]}>
         <cylinderGeometry args={[POLE_R, POLE_R * 0.85, POLE_R, 32]} />
         <meshStandardMaterial
-          color={isP1 ? "#1E2A28" : "#2A2420"}
-          emissive={isP1 ? "#1A2624" : "#26201C"}
-          emissiveIntensity={0.12} metalness={0.75} roughness={0.3}
+          color={isP1 ? "#004455" : "#440033"}
+          emissive={isP1 ? "#003344" : "#330033"}
+          emissiveIntensity={0.15} metalness={0.9} roughness={0.1}
         />
       </mesh>
       <mesh ref={ringRef} position={[isP1 ? -5.5 : 5.5, POLE_R + 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -521,11 +520,11 @@ function GhostPoles() {
         if (c.isMesh) {
           c.material.color.copy(col);
           c.material.emissive.copy(col);
-          c.material.emissiveIntensity = 0.2 + pulse * 0.4;
+          c.material.emissiveIntensity = 0.4 + pulse * 0.8;
           c.material.opacity = 0.25 + pulse * 0.35;
         }
       });
-      if (lr) { lr.position.set(g.x, 0.5, g.z); lr.color.copy(col); lr.intensity = 0.25 + pulse * 0.5; }
+      if (lr) { lr.position.set(g.x, 0.5, g.z); lr.color.copy(col); lr.intensity = 0.5 + pulse; }
     });
   });
 
@@ -535,15 +534,15 @@ function GhostPoles() {
         <group key={i} ref={el => refs.current[i] = el} visible={false}>
           <mesh>
             <torusGeometry args={[POLE_R * 0.9, 0.05, 8, 32]} />
-            <meshStandardMaterial color={UI.attract} emissive={UI.attract} emissiveIntensity={0.5} transparent opacity={0.38} />
+            <meshStandardMaterial color={UI.attract} emissive={UI.attract} emissiveIntensity={1} transparent opacity={0.5} />
           </mesh>
           <mesh>
             <torusGeometry args={[POLE_R * 1.7, 0.03, 8, 32]} />
-            <meshStandardMaterial color={UI.attract} emissive={UI.attract} emissiveIntensity={0.3} transparent opacity={0.22} />
+            <meshStandardMaterial color={UI.attract} emissive={UI.attract} emissiveIntensity={0.6} transparent opacity={0.3} />
           </mesh>
           <mesh>
             <sphereGeometry args={[0.06, 8, 8]} />
-            <meshStandardMaterial color={UI.bone} emissive={UI.bone} emissiveIntensity={0.9} transparent opacity={0.6} />
+            <meshStandardMaterial color={UI.bone} emissive={UI.bone} emissiveIntensity={2} transparent opacity={0.8} />
           </mesh>
         </group>
       ))}
@@ -607,11 +606,11 @@ function VectorField() {
       const hA = p1.mode === "ATTRACT" || bot.mode === "ATTRACT" || ghosts.some(g => g.mode === "ATTRACT");
       const hR = p1.mode === "REPEL"   || bot.mode === "REPEL"   || ghosts.some(g => g.mode === "REPEL");
       const alpha = clamp(mag * 0.07, 0.05, 0.8);
-      if (hA && hR) fieldCol.setHSL(0.5, 0.12, 0.55);
+      if (hA && hR) fieldCol.setHSL(0.75, 1, 0.5);
       else if (hA)  fieldCol.set(UI.attract);
       else if (hR)  fieldCol.set(UI.repel);
-      else          fieldCol.setHSL(0.5, 0.06, 0.22);
-      fieldCol.multiplyScalar(alpha * 1.6);
+      else          fieldCol.setHSL(0.6, 0.4, 0.15);
+      fieldCol.multiplyScalar(alpha * 2.2);
       mesh.setColorAt(i, fieldCol);
     }
     mesh.instanceMatrix.needsUpdate = true;
@@ -638,7 +637,7 @@ function ModeDot({ mode }) {
       <div style={{
         width:5, height:5, borderRadius:"50%",
         background: active ? color : UI.silt,
-        boxShadow: active ? `0 0 6px ${color}, 0 0 1px ${color}` : "none",
+        boxShadow: active ? `0 0 10px ${color}, 0 0 3px ${color}` : "none",
         transition:"all 0.15s",
       }} />
       <span style={{
@@ -671,7 +670,7 @@ function HUD() {
           <span style={{
             color:UI.bone, fontSize:22, fontWeight:"bold", lineHeight:1,
             letterSpacing:"0.03em",
-            textShadow:`0 0 14px ${UI.attract}55, 0 1px 0 rgba(0,0,0,0.6)`,
+            textShadow:`0 0 22px ${UI.attract}AA, 0 0 44px ${UI.attract}55, 0 1px 0 rgba(0,0,0,0.6)`,
           }}>{pad2(score.p1)}</span>
           <ModeDot mode={p1Mode} />
         </div>
@@ -690,7 +689,7 @@ function HUD() {
           <span style={{
             color:UI.bone, fontSize:22, fontWeight:"bold", lineHeight:1,
             letterSpacing:"0.03em",
-            textShadow:`0 0 14px ${UI.repel}55, 0 1px 0 rgba(0,0,0,0.6)`,
+            textShadow:`0 0 22px ${UI.repel}AA, 0 0 44px ${UI.repel}55, 0 1px 0 rgba(0,0,0,0.6)`,
           }}>{pad2(score.bot)}</span>
           <ModeDot mode={botMode} />
         </div>
@@ -721,8 +720,8 @@ function SwitchButton({ label, color, onPress, onRelease }) {
         cursor:"pointer", touchAction:"none", userSelect:"none",
         transform: pressed ? "translateY(2px)" : "translateY(0)",
         boxShadow: pressed
-          ? `inset 0 2px 5px rgba(0,0,0,0.5)`
-          : `0 2px 0 ${UI.void}`,
+          ? `inset 0 2px 5px rgba(0,0,0,0.5), 0 0 18px ${color}88`
+          : `0 2px 0 ${UI.void}, 0 0 6px ${color}22`,
         transition:"transform 0.05s, box-shadow 0.05s, border-color 0.1s, color 0.1s",
       }}
     >{label}</button>
@@ -838,13 +837,13 @@ function GameOverOverlay() {
       position:"fixed", inset:0, zIndex:30,
       display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
       background: UI.void,
-      boxShadow:`inset 0 0 160px ${wc}18`,
+      boxShadow:`inset 0 0 220px ${wc}38`,
       fontFamily:"'Courier New',monospace",
     }}>
       <div style={{ color:UI.ghost, fontSize:9, letterSpacing:"0.35em", marginBottom:16 }}>MATCH COMPLETE</div>
       <div style={{
         color:wc, fontSize:30, fontWeight:"bold", letterSpacing:"0.18em", marginBottom:7,
-        textShadow:`0 0 24px ${wc}55`,
+        textShadow:`0 0 36px ${wc}AA, 0 0 70px ${wc}55`,
       }} dangerouslySetInnerHTML={{ __html: wl }} />
       <div style={{ color:UI.hazeDim, fontSize:9, letterSpacing:"0.25em", marginBottom:10 }}>FIELD DOMINANCE</div>
       <div style={{ fontSize:24, marginBottom:30, letterSpacing:"0.05em" }}>
@@ -879,7 +878,7 @@ function Scene({ keysRef, s1Ref, s2Ref, modeRef }) {
         <VectorField />
       </>}
       <EffectComposer>
-        <Bloom intensity={0.6} luminanceThreshold={0.42} luminanceSmoothing={0.95} mipmapBlur />
+        <Bloom intensity={1.6} luminanceThreshold={0.24} luminanceSmoothing={0.8} mipmapBlur />
       </EffectComposer>
     </>
   );
@@ -920,24 +919,10 @@ export default function MagPhys3D() {
       {phase === "MENU"     && <MenuOverlay />}
       {phase === "GAMEOVER" && <GameOverOverlay />}
 
-      {/* Heavy vignette -- murky underwater falloff toward all edges */}
+      {/* Light focus vignette -- subtle edge darkening, arcade-cabinet framing only */}
       <div style={{
         position:"fixed", inset:0, zIndex:90, pointerEvents:"none",
-        background:"radial-gradient(ellipse at 50% 50%, transparent 32%, rgba(6,8,9,0.55) 78%, rgba(4,5,6,0.88) 100%)",
-      }} />
-
-      {/* Deep film grain -- animated noise texture */}
-      <div style={{
-        position:"fixed", inset:0, zIndex:91, pointerEvents:"none",
-        opacity:0.1, mixBlendMode:"overlay",
-        backgroundImage:`url('data:image/svg+xml,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="n"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="4" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23n)"/%3E%3C/svg%3E')`,
-        animation:"grainShift 0.6s steps(4) infinite",
-      }} />
-
-      {/* Soft chromatic haze -- low-contrast murk over everything */}
-      <div style={{
-        position:"fixed", inset:0, zIndex:89, pointerEvents:"none",
-        background:`linear-gradient(180deg, ${UI.void}22 0%, transparent 18%, transparent 82%, ${UI.void}30 100%)`,
+        background:"radial-gradient(ellipse at 50% 50%, transparent 58%, rgba(0,0,0,0.32) 100%)",
       }} />
 
       <style>{`
@@ -948,15 +933,8 @@ export default function MagPhys3D() {
         button:active { opacity:0.7; }
         canvas { display:block; }
         @keyframes titlePulse {
-          0%, 100% { text-shadow: 0 0 18px ${UI.attract}33; }
-          50%       { text-shadow: 0 0 34px ${UI.attract}55, 0 0 60px ${UI.attract}18; }
-        }
-        @keyframes grainShift {
-          0%   { transform: translate(0,0); }
-          25%  { transform: translate(-1%,1%); }
-          50%  { transform: translate(1%,-1%); }
-          75%  { transform: translate(-1%,-1%); }
-          100% { transform: translate(0,0); }
+          0%, 100% { text-shadow: 0 0 24px ${UI.attract}77, 0 0 50px ${UI.attract}33; }
+          50%       { text-shadow: 0 0 44px ${UI.attract}AA, 0 0 90px ${UI.attract}55; }
         }
       `}</style>
     </div>
