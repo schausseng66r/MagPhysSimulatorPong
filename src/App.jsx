@@ -597,11 +597,39 @@ const dummySpk  = new THREE.Object3D();
 const fieldCol  = new THREE.Color();
 const spikeCol  = new THREE.Color();
 
+// Merges indexed BufferGeometries correctly -- concatenates position/normal
+// arrays AND offsets+concatenates each geometry's own index buffer. Reading
+// only the raw position array (as the previous version did) silently drops
+// the index, which corrupts the triangle list since CylinderGeometry/
+// ConeGeometry store SHARED vertices referenced by an index list, not a
+// flat per-triangle sequence. That was why the arrows never rendered.
+function mergeIndexed(geometries) {
+  const positions = [], normals = [], indices = [];
+  let vOffset = 0;
+  for (const g of geometries) {
+    const posAttr = g.attributes.position;
+    const norAttr = g.attributes.normal;
+    for (let i = 0; i < posAttr.count; i++) {
+      positions.push(posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i));
+      if (norAttr) normals.push(norAttr.getX(i), norAttr.getY(i), norAttr.getZ(i));
+    }
+    if (g.index) {
+      for (let i = 0; i < g.index.count; i++) indices.push(g.index.getX(i) + vOffset);
+    } else {
+      for (let i = 0; i < posAttr.count; i++) indices.push(i + vOffset);
+    }
+    vOffset += posAttr.count;
+  }
+  const merged = new THREE.BufferGeometry();
+  merged.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  if (normals.length) merged.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+  merged.setIndex(indices);
+  return merged;
+}
+
 function buildArrow() {
   // Built lying along +Z so it lies FLAT on the table and rotation.y around
-  // the vertical axis actually points it toward the force direction --
-  // previously this was built along +Y (vertical peg), so the rotation did
-  // nothing visually. This is the fix for "arrows on the floor."
+  // the vertical axis actually points it toward the force direction.
   const shaftLen = 0.3, headLen = 0.15;
   const shaft = new THREE.CylinderGeometry(0.022, 0.022, shaftLen, 6);
   shaft.rotateX(Math.PI / 2);
@@ -609,17 +637,7 @@ function buildArrow() {
   const head = new THREE.ConeGeometry(0.062, headLen, 6);
   head.rotateX(Math.PI / 2);
   head.translate(0, 0, shaftLen + headLen / 2);
-  const pos = [], nor = [];
-  for (const g of [shaft, head]) {
-    const p = g.attributes.position.array;
-    const n = g.attributes.normal?.array || [];
-    for (let i = 0; i < p.length; i++) pos.push(p[i]);
-    for (let i = 0; i < n.length; i++) nor.push(n[i]);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-  if (nor.length) geo.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
-  return geo;
+  return mergeIndexed([shaft, head]);
 }
 
 function buildSpike() {
@@ -670,33 +688,33 @@ function VectorField() {
         continue;
       }
       dummy.rotation.set(0, Math.atan2(fx, fz), 0);
-      dummy.scale.set(1, 1, clamp(mag * 0.22, 0.12, 2.2));
+      dummy.scale.set(1, 1, clamp(mag * 0.24, 0.14, 3.0));
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
 
-      const alpha = clamp(mag * 0.07, 0.05, 0.8);
+      const alpha = clamp(mag * 0.08, 0.06, 1.0);
       if (hA && hR) fieldCol.setHSL(0.75, 1, 0.5);
       else if (hA)  fieldCol.set(UI.attract);
       else if (hR)  fieldCol.set(UI.repel);
       else          fieldCol.setHSL(0.6, 0.4, 0.15);
-      fieldCol.multiplyScalar(alpha * 2.2);
+      fieldCol.multiplyScalar(alpha * 2.8);
       mesh.setColorAt(i, fieldCol);
 
       // -- Vertical intensity spike (the aura) --
       const shimmer = 0.9 + 0.1 * Math.sin(t * 3 + wx * 1.7 + wz * 1.3);
-      const spikeH  = clamp(mag * 0.16, 0.05, 2.4) * shimmer;
+      const spikeH  = clamp(mag * 0.2, 0.06, 3.2) * shimmer;
       dummySpk.position.set(wx, 0, wz);
       dummySpk.rotation.set(0, 0, 0);
       dummySpk.scale.set(1, spikeH, 1);
       dummySpk.updateMatrix();
       spike.setMatrixAt(i, dummySpk.matrix);
 
-      const spikeAlpha = clamp(mag * 0.05, 0.04, 0.55);
+      const spikeAlpha = clamp(mag * 0.06, 0.05, 0.75);
       if (hA && hR) spikeCol.setHSL(0.75, 1, 0.55);
       else if (hA)  spikeCol.set(UI.attract);
       else if (hR)  spikeCol.set(UI.repel);
       else          spikeCol.setHSL(0.6, 0.4, 0.2);
-      spikeCol.multiplyScalar(spikeAlpha * 2.6);
+      spikeCol.multiplyScalar(spikeAlpha * 3.2);
       spike.setColorAt(i, spikeCol);
     }
     mesh.instanceMatrix.needsUpdate = true;
